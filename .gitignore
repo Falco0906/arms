@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+target/
+
+# Environment variables
+.env
+.env.local
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build outputs
+build/
+dist/
+
+# Uploads
+uploads/
+
+# Database
+*.db
+
+# Java
+*.class
+*.jar
+*.war
+*.ear
