@@ -1,4 +1,4 @@
-package com.oops.platform.entity;
+package com.arms.platform.entity;
 
 import jakarta.persistence.*;
 import java.time.LocalDateTime;

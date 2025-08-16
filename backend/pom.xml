@@ -9,11 +9,11 @@
         <relativePath/>
     </parent>
     
-    <groupId>com.oops</groupId>
+    <groupId>com.arms</groupId>
     <artifactId>platform</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>OOPS Platform</name>
-    <description>Online Open Platform for Students</description>
+    <name>ARMS Platform</name>
+    <description>Academic Resource Management System</description>
     
     <properties>
         <java.version>17</java.version>

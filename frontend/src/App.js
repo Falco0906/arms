@@ -21,6 +21,9 @@ import {
   Calendar,
   Users
 } from 'lucide-react';
+import CourseDetail from './components/dashboard/CourseDetail';
+import UserProfile from './components/rankings/UserProfile';
+import RegisterPage from './components/auth/RegisterPage';
 
 const OOPSPlatform = () => {
   const [currentPage, setCurrentPage] = useState('login');
@@ -30,6 +33,9 @@ const OOPSPlatform = () => {
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [notifications, setNotifications] = useState(3);
+  const [selectedCourse, setSelectedCourse] = useState(null);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [showRegister, setShowRegister] = useState(false);
 
   // Mock data
   const courses = [
@@ -76,8 +82,8 @@ const OOPSPlatform = () => {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="text-4xl font-bold text-indigo-600 mb-2">OOPS</div>
-          <p className="text-gray-600">Online Open Platform for Students</p>
+          <div className="text-4xl font-bold text-indigo-600 mb-2">ARMS</div>
+          <p className="text-gray-600">Academic Resource Management System</p>
         </div>
         
         <div className="space-y-4">
@@ -100,7 +106,10 @@ const OOPSPlatform = () => {
             Sign In
           </button>
           <p className="text-center text-sm text-gray-600">
-            Don't have an account? <span className="text-indigo-600 cursor-pointer hover:underline">Register here</span>
+            Don't have an account? <span 
+              className="text-indigo-600 cursor-pointer hover:underline"
+              onClick={() => setShowRegister(true)}
+            >Register here</span>
           </p>
         </div>
       </div>
@@ -110,7 +119,7 @@ const OOPSPlatform = () => {
   const Sidebar = () => (
     <div className="w-64 bg-white border-r border-gray-200 h-full flex flex-col">
       <div className="p-6 border-b border-gray-200">
-        <div className="text-2xl font-bold text-indigo-600">OOPS</div>
+        <div className="text-2xl font-bold text-indigo-600">ARMS</div>
         <p className="text-sm text-gray-600 mt-1">Welcome back, {user?.name}</p>
       </div>
       
@@ -264,7 +273,11 @@ const OOPSPlatform = () => {
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {courses.filter(course => selectedCourses.includes(course.id)).map(course => (
-          <div key={course.id} className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer">
+          <div 
+            key={course.id} 
+            className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer"
+            onClick={() => setSelectedCourse(course)}
+          >
             <div className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <div className={`w-12 h-12 ${course.color} rounded-lg flex items-center justify-center text-white font-bold text-lg`}>
@@ -315,7 +328,11 @@ const OOPSPlatform = () => {
         
         <div className="divide-y divide-gray-200">
           {rankings.map((user, index) => (
-            <div key={user.id} className="p-6 hover:bg-gray-50 transition-colors cursor-pointer">
+            <div 
+              key={user.id} 
+              className="p-6 hover:bg-gray-50 transition-colors cursor-pointer"
+              onClick={() => setSelectedUser({ ...user, rank: index + 1, role: 'STUDENT' })}
+            >
               <div className="flex items-center space-x-4">
                 <div className="flex items-center justify-center w-8 h-8">
                   {index === 0 && <Trophy className="text-yellow-500" size={24} />}
@@ -482,6 +499,26 @@ const OOPSPlatform = () => {
   );
 
   if (!user) {
+    if (showRegister) {
+      return (
+        <RegisterPage 
+          onBackToLogin={() => setShowRegister(false)}
+          onRegister={(userData) => {
+            // In a real app, this would make an API call
+            console.log('Registering user:', userData);
+            setShowRegister(false);
+            // For demo purposes, auto-login after registration
+            setUser({ 
+              name: `${userData.firstName} ${userData.lastName}`, 
+              email: userData.email,
+              role: userData.role
+            });
+            setCurrentPage('home');
+            setSelectedCourses([1, 3, 5]);
+          }}
+        />
+      );
+    }
     return <LoginPage />;
   }
 
@@ -492,8 +529,22 @@ const OOPSPlatform = () => {
         <Header />
         <div className="flex-1 overflow-y-auto">
           {currentPage === 'home' && <HomePage />}
-          {currentPage === 'dashboard' && <Dashboard />}
-          {currentPage === 'rankings' && <Rankings />}
+          {currentPage === 'dashboard' && selectedCourse ? (
+            <CourseDetail 
+              course={selectedCourse} 
+              onBack={() => setSelectedCourse(null)} 
+            />
+          ) : (
+            <Dashboard />
+          )}
+          {currentPage === 'rankings' && selectedUser ? (
+            <UserProfile 
+              user={selectedUser} 
+              onBack={() => setSelectedUser(null)} 
+            />
+          ) : (
+            <Rankings />
+          )}
         </div>
       </div>
       

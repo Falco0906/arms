@@ -1,36 +1,87 @@
 version: '3.8'
+
 services:
+  # PostgreSQL Database
   postgres:
-    image: postgres:13-alpine
+    image: postgres:15-alpine
+    container_name: arms_postgres
     environment:
-      POSTGRES_DB: oops_platform
+      POSTGRES_DB: arms_platform
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_MULTIPLE_DATABASES: oops_platform
+      POSTGRES_PASSWORD: postgres_password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
-    command: ["postgres", "-c", "max_connections=100"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - arms_network
 
-  backend:
-    build: ./backend
+  # Redis for caching and sessions (optional)
+  redis:
+    image: redis:7-alpine
+    container_name: arms_redis
     ports:
-      - "8080:8080"
-    depends_on:
-      - postgres
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - arms_network
+
+  # MinIO for local file storage (alternative to AWS S3)
+  minio:
+    image: minio/minio:latest
+    container_name: arms_minio
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/oops_platform
-      SPRING_DATASOURCE_USERNAME: oops_user
-      SPRING_DATASOURCE_PASSWORD: oops_password
-
-  frontend:
-    build: ./frontend
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+      MINIO_DEFAULT_BUCKETS: arms-platform-files
     ports:
-      - "3000:3000"
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - arms_network
+
+  # Adminer for database management (optional)
+  adminer:
+    image: adminer:latest
+    container_name: arms_adminer
+    ports:
+      - "8081:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
     depends_on:
-      - backend
+      postgres:
+        condition: service_healthy
+    networks:
+      - arms_network
 
 volumes:
   postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  minio_data:
+    driver: local
+
+networks:
+  arms_network:
+    driver: bridge
