@@ -40,133 +40,37 @@ api.interceptors.response.use(
 export const authAPI = {
   login: (credentials) => api.post('/auth/login', credentials),
   register: (userData) => api.post('/auth/register', userData),
-  logout: () => api.post('/auth/logout'),
-  refreshToken: () => api.post('/auth/refresh'),
   getCurrentUser: () => api.get('/auth/me'),
-};
-
-// User API
-export const userAPI = {
-  getTopContributors: () => api.get('/users/rankings'),
-  getTopFacultyContributors: () => api.get('/users/rankings/faculty'),
-  getTopStudentContributors: () => api.get('/users/rankings/students'),
-  getUserById: (id) => api.get(`/users/${id}`),
-  getUserByEmail: (email) => api.get(`/users/profile/${email}`),
-  updateProfile: (id, data) => api.put(`/users/${id}`, data),
-  getUploads: (userId) => api.get(`/users/${userId}/uploads`),
 };
 
 // Course API
 export const courseAPI = {
   getAllCourses: () => api.get('/courses'),
-  searchCourses: (query) => api.get(`/courses/search?q=${encodeURIComponent(query)}`),
+  searchCourses: (query) => api.get(`/courses?q=${encodeURIComponent(query)}`),
   getCourseById: (id) => api.get(`/courses/${id}`),
-  getCoursesByUser: (userId) => api.get(`/courses/user/${userId}`),
-  enrollInCourse: (courseId) => api.post(`/courses/${courseId}/enroll`),
-  unenrollFromCourse: (courseId) => api.delete(`/courses/${courseId}/enroll`),
   getCourseMaterials: (courseId) => api.get(`/courses/${courseId}/materials`),
 };
 
 // Material API
 export const materialAPI = {
-  uploadMaterial: (formData) => api.post('/materials/upload', formData, {
+  uploadMaterial: (courseId, formData) => api.post(`/courses/${courseId}/materials`, formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
   }),
-  getMaterials: (params) => api.get('/materials', { params }),
-  searchMaterials: (query) => api.get(`/materials/search?q=${encodeURIComponent(query)}`),
-  getMaterialById: (id) => api.get(`/materials/${id}`),
-  updateMaterial: (id, data) => api.put(`/materials/${id}`, data),
+  getMaterialsByCourse: (courseId) => api.get(`/courses/${courseId}/materials`),
   deleteMaterial: (id) => api.delete(`/materials/${id}`),
-  downloadMaterial: (id) => api.get(`/materials/${id}/download`, {
-    responseType: 'blob',
-  }),
-  getRecentUploads: () => api.get('/materials/recent'),
-  getMaterialsByCourse: (courseId, params) => api.get(`/materials/course/${courseId}`, { params }),
 };
 
-// News API
-export const newsAPI = {
-  getAllNews: () => api.get('/news'),
-  getNewsByType: (type) => api.get(`/news/type/${type}`),
-  getNewsById: (id) => api.get(`/news/${id}`),
-  createNews: (data) => api.post('/news', data),
-  updateNews: (id, data) => api.put(`/news/${id}`, data),
-  deleteNews: (id) => api.delete(`/news/${id}`),
-  pinNews: (id) => api.put(`/news/${id}/pin`),
-  unpinNews: (id) => api.put(`/news/${id}/unpin`),
+// Rankings API
+export const rankingsAPI = {
+  getTopUploaders: (limit = 50) => api.get(`/rankings?limit=${limit}`),
 };
 
-// Notification API
-export const notificationAPI = {
-  getNotifications: () => api.get('/notifications'),
-  markAsRead: (id) => api.put(`/notifications/${id}/read`),
-  markAllAsRead: () => api.put('/notifications/read-all'),
-  deleteNotification: (id) => api.delete(`/notifications/${id}`),
-  getUnreadCount: () => api.get('/notifications/unread-count'),
-};
-
-// File Upload API
-export const uploadAPI = {
-  uploadFile: (file, onProgress) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    
-    return api.post('/upload/file', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-      onUploadProgress: (progressEvent) => {
-        if (onProgress) {
-          const percentCompleted = Math.round(
-            (progressEvent.loaded * 100) / progressEvent.total
-          );
-          onProgress(percentCompleted);
-        }
-      },
-    });
-  },
-  
-  uploadMaterial: (materialData, onProgress) => {
-    const formData = new FormData();
-    
-    // Add file
-    if (materialData.file) {
-      formData.append('file', materialData.file);
-    }
-    
-    // Add other material data
-    Object.keys(materialData).forEach(key => {
-      if (key !== 'file') {
-        formData.append(key, materialData[key]);
-      }
-    });
-    
-    return api.post('/materials/upload', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-      onUploadProgress: (progressEvent) => {
-        if (onProgress) {
-          const percentCompleted = Math.round(
-            (progressEvent.loaded * 100) / progressEvent.total
-          );
-          onProgress(percentCompleted);
-        }
-      },
-    });
-  },
-};
-
-// Statistics API
-export const statsAPI = {
-  getDashboardStats: () => api.get('/stats/dashboard'),
-  getCourseStats: (courseId) => api.get(`/stats/courses/${courseId}`),
-  getUserStats: (userId) => api.get(`/stats/users/${userId}`),
-  getUploadStats: (params) => api.get('/stats/uploads', { params }),
-  getPopularMaterials: () => api.get('/stats/materials/popular'),
-  getRecentActivity: () => api.get('/stats/activity/recent'),
+// File serving - direct access to uploaded files
+export const getFileUrl = (path) => {
+  const baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:8080';
+  return `${baseUrl}${path}`;
 };
 
 // Error handling utility
@@ -177,7 +81,7 @@ export const handleAPIError = (error) => {
     
     switch (status) {
       case 400:
-        return `Bad Request: ${data.message || 'Invalid data provided'}`;
+        return `Bad Request: ${data.error || 'Invalid data provided'}`;
       case 401:
         return 'Unauthorized: Please log in again';
       case 403:
@@ -185,13 +89,13 @@ export const handleAPIError = (error) => {
       case 404:
         return 'Not Found: The requested resource was not found';
       case 409:
-        return `Conflict: ${data.message || 'Resource already exists'}`;
+        return `Conflict: ${data.error || 'Resource already exists'}`;
       case 422:
-        return `Validation Error: ${data.message || 'Invalid input data'}`;
+        return `Validation Error: ${data.error || 'Invalid input data'}`;
       case 500:
         return 'Internal Server Error: Please try again later';
       default:
-        return `Error ${status}: ${data.message || 'Something went wrong'}`;
+        return `Error ${status}: ${data.error || 'Something went wrong'}`;
     }
   } else if (error.request) {
     // Request was made but no response received
