@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 
 public interface MaterialRepository extends JpaRepository<Material, Long> {
   List<Material> findByCourseOrderByCreatedAtDesc(Course course);
+  List<Material> findByUserId(Long userId);
 
   @Query("""
     SELECT new com.arms.platform.material.RankingRow(m.user.id, m.user.name, COUNT(m))

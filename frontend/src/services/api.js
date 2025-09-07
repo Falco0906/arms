@@ -67,6 +67,26 @@ export const rankingsAPI = {
   getTopUploaders: (limit = 50) => api.get(`/rankings?limit=${limit}`),
 };
 
+// News API
+export const newsAPI = {
+  getAllNews: (page = 0, size = 10, search = null, type = null) => {
+    const params = new URLSearchParams({ page, size });
+    if (search) params.append('search', search);
+    if (type) params.append('type', type);
+    return api.get(`/news?${params.toString()}`);
+  },
+  getRecentNews: (limit = 5) => api.get(`/news/recent?limit=${limit}`),
+  createNews: (newsData) => api.post('/news', newsData),
+  updateNews: (id, newsData) => api.put(`/news/${id}`, newsData),
+  deleteNews: (id) => api.delete(`/news/${id}`)
+};
+
+// User API
+export const userAPI = {
+  getUserProfile: (id) => api.get(`/users/${id}`),
+  searchUsers: (query) => api.get(`/users/search?query=${encodeURIComponent(query)}`)
+};
+
 // File serving - direct access to uploaded files
 export const getFileUrl = (path) => {
   const baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:8080';
