@@ -152,7 +152,7 @@ const HomePage = ({ user, setShowCreateNews, error, selectedCourse, onCourseSele
     },
     {
       title: 'Dashboard & Courses',
-      body: 'Browse all courses in Dashboard. Click a course to view materials, filter by type, and search.'
+      body: 'Browse all courses in Dashboard. Click a course to view materials, filter by type, search, and open an uploader\'s profile from each material.'
     },
     {
       title: 'Upload',
@@ -160,7 +160,19 @@ const HomePage = ({ user, setShowCreateNews, error, selectedCourse, onCourseSele
     },
     {
       title: 'Rankings & Profiles',
-      body: 'See top contributors in Rankings and open any user to view their profile and materials.'
+      body: 'See top contributors in Rankings and open any user to view their profile and materials. The profile back button returns to where you came from (home/rankings/course).'
+    },
+    {
+      title: 'Pinned & Recent',
+      body: 'Use the sidebar to access Pinned courses and Recently visited courses. Pins and recents are saved per user and persist across logins.'
+    },
+    {
+      title: 'Personal Notes',
+      body: 'Keep private notes using the Personal Notes page in the sidebar. Notes auto-save locally per user and remain after logout.'
+    },
+    {
+      title: 'Google Sign-In',
+      body: 'Sign in with your college Google account (@klh.edu.in). Other accounts are blocked for security.'
     }
   ];
 
