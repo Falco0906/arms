@@ -565,13 +565,13 @@ const ARMSPlatform = () => {
   );
 
   const Sidebar = () => (
-    <div className="w-64 bg-white border-r border-gray-200 h-full flex flex-col relative z-20">
+    <div className="w-64 bg-white border-r border-gray-200 h-full min-h-0 flex flex-col relative z-20">
       <div className="p-6 border-b border-gray-200">
         <div className="text-2xl font-bold text-indigo-600">ARMS</div>
         <p className="text-sm text-gray-600 mt-1">Welcome back, {user?.name}</p>
       </div>
       
-      <nav className="flex-1 p-4 space-y-2">
+      <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
         <button 
           onClick={() => setCurrentPage('home')}
           className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${currentPage === 'home' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-700 hover:bg-gray-100'}`}
@@ -612,6 +612,14 @@ const ARMSPlatform = () => {
         >
           <Trophy size={20} />
           <span>Rankings</span>
+        </button>
+
+        <button 
+          onClick={() => setCurrentPage('notes')}
+          className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${currentPage === 'notes' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-700 hover:bg-gray-100'}`}
+        >
+          <FileText size={20} />
+          <span>Personal Notes</span>
         </button>
 
         {/* Pinned Courses */}
@@ -983,7 +991,7 @@ const ARMSPlatform = () => {
                     </button>
                   </div>
                   <div className="text-sm text-gray-500 mb-2">
-                    {material.size ? `${(material.size / 1024 / 1024).toFixed(1)} MB` : 'Unknown size'}
+                    {(() => { const s = material.size ?? material.fileSize; return s ? `${(s / 1024 / 1024).toFixed(1)} MB` : 'Unknown size'; })()}
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-gray-400">
@@ -1077,7 +1085,7 @@ const ARMSPlatform = () => {
                             {material.type}
                           </span>
                           <div className="text-sm text-gray-500">
-                            {material.size ? `${(material.size / 1024 / 1024).toFixed(1)} MB` : 'Unknown size'}
+                            {(() => { const s = material.size ?? material.fileSize; return s ? `${(s / 1024 / 1024).toFixed(1)} MB` : 'Unknown size'; })()}
                           </div>
                         </div>
                         <div className="flex items-center mt-1">
@@ -1086,7 +1094,7 @@ const ARMSPlatform = () => {
                             className="text-sm text-gray-600 hover:text-indigo-600 flex items-center space-x-1"
                           >
                             <User size={14} />
-                            <span>{material.uploader?.name || 'Unknown uploader'}</span>
+                            <span>{material.uploader?.fullName || material.uploader?.firstName || material.uploader?.name || material.uploader?.email || 'Unknown uploader'}</span>
                           </button>
                         </div>
                         <div className="text-xs text-gray-500 mt-1">
@@ -1171,6 +1179,37 @@ const ARMSPlatform = () => {
       </div>
     </div>
   );
+
+  const NotesPage = () => {
+    const storageKey = user ? `arms:${user.id}:notes` : 'arms:anon:notes';
+    const [text, setText] = useState(() => localStorage.getItem(storageKey) || '');
+    const [saving, setSaving] = useState(false);
+    useEffect(() => {
+      setSaving(true);
+      const id = setTimeout(() => {
+        try { localStorage.setItem(storageKey, text); } catch (e) {}
+        setSaving(false);
+      }, 400);
+      return () => clearTimeout(id);
+    }, [text, storageKey]);
+    useEffect(() => {
+      setText(localStorage.getItem(storageKey) || '');
+    }, [storageKey]);
+    return (
+      <div className="p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold text-gray-900">Personal Notes</h1>
+          <span className="text-sm text-gray-500">{saving ? 'Saving…' : 'Saved'}</span>
+        </div>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          className="w-full h-[60vh] p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+          placeholder="Write anything you want to remember…"
+        />
+      </div>
+    );
+  };
 
   const UserProfile = () => (
     <div className="p-6 space-y-6">
@@ -1642,6 +1681,7 @@ const ARMSPlatform = () => {
             <Dashboard />
           ) : null}
           {currentPage === 'rankings' && <Rankings />}
+          {currentPage === 'notes' && <NotesPage />}
           {currentPage === 'user-profile' && <UserProfile />}
         </div>
       </div>
