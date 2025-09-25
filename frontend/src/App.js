@@ -43,6 +43,7 @@ const ARMSPlatform = () => {
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
+  const [profileBackTo, setProfileBackTo] = useState('rankings');
   const [userSearchQuery, setUserSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [showRegister, setShowRegister] = useState(false);
@@ -335,9 +336,10 @@ const ARMSPlatform = () => {
     setFilteredMaterials(filtered);
   }, [materials]);
 
-  const handleUserSelect = async (user) => {
+  const handleUserSelect = async (user, backTo) => {
     console.log('handleUserSelect called with user:', user);
     setSelectedUser(user);
+    if (backTo) setProfileBackTo(backTo);
     setLoading(true);
     setError(null);
     try {
@@ -721,7 +723,7 @@ const ARMSPlatform = () => {
                 <div 
                   key={user.id} 
                   className="p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
-                  onClick={() => handleUserSelect({ userId: user.id, name: user.name })}
+                  onClick={() => handleUserSelect({ userId: user.id, name: user.name }, 'home')}
                 >
                   <div className="flex items-center space-x-3">
                     <div className="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-white font-semibold">
@@ -753,6 +755,7 @@ const ARMSPlatform = () => {
           onClick={async () => {
             console.log('User object when clicking profile:', user);
             setSelectedUser({ userId: user.id, name: user.name });
+            setProfileBackTo('home');
             setLoading(true);
             setError(null);
             try {
@@ -970,22 +973,17 @@ const ARMSPlatform = () => {
                       {material.type}
                     </span>
                   </div>
-                  <div className="flex items-center space-x-2 mb-2">
-                    {material.uploader ? (
-                      <>
-                        <button 
-                          onClick={() => handleUserSelect({ userId: material.uploader.id, name: material.uploader.name })}
-                          className="text-sm text-gray-600 hover:text-indigo-600 flex items-center space-x-1"
-                        >
-                          <User size={14} />
-                          <span>{material.uploader.name}</span>
-                        </button>
-                        <span className="text-gray-400">•</span>
-                      </>
-                    ) : null}
-                    <span className="text-sm text-gray-500">
-                      {material.size ? `${(material.size / 1024 / 1024).toFixed(1)} MB` : 'Unknown size'}
-                    </span>
+                  <div className="flex items-center space-x-2 mb-1">
+                    <button 
+                      onClick={() => material.uploader ? handleUserSelect({ userId: material.uploader.id, name: material.uploader.name }, 'course') : null}
+                      className="text-sm text-gray-600 hover:text-indigo-600 flex items-center space-x-1"
+                    >
+                      <User size={14} />
+                      <span>{material.uploader?.fullName || material.uploader?.firstName || material.uploader?.name || material.uploader?.email || 'Unknown uploader'}</span>
+                    </button>
+                  </div>
+                  <div className="text-sm text-gray-500 mb-2">
+                    {material.size ? `${(material.size / 1024 / 1024).toFixed(1)} MB` : 'Unknown size'}
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-gray-400">
@@ -1078,26 +1076,21 @@ const ARMSPlatform = () => {
                           }`}>
                             {material.type}
                           </span>
-                          <span className="text-sm text-gray-500">
-                            • {material.size ? `${(material.size / 1024 / 1024).toFixed(1)} MB` : 'Unknown size'}
-                          </span>
+                          <div className="text-sm text-gray-500">
+                            {material.size ? `${(material.size / 1024 / 1024).toFixed(1)} MB` : 'Unknown size'}
+                          </div>
                         </div>
                         <div className="flex items-center mt-1">
-                          {material.uploader ? (
-                            <>
-                              <button 
-                                onClick={() => handleUserSelect({ userId: material.uploader.id, name: material.uploader.name })}
-                                className="text-sm text-gray-600 hover:text-indigo-600 flex items-center space-x-1"
-                              >
-                                <User size={14} />
-                                <span>{material.uploader.name}</span>
-                              </button>
-                              <span className="text-gray-400 mx-2">•</span>
-                            </>
-                          ) : null}
-                          <span className="text-sm text-gray-500">
-                            {material.createdAt ? new Date(material.createdAt).toLocaleDateString() : 'Unknown date'}
-                          </span>
+                          <button 
+                            onClick={() => material.uploader ? handleUserSelect({ userId: material.uploader.id, name: material.uploader.name }, 'course') : null}
+                            className="text-sm text-gray-600 hover:text-indigo-600 flex items-center space-x-1"
+                          >
+                            <User size={14} />
+                            <span>{material.uploader?.name || 'Unknown uploader'}</span>
+                          </button>
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {material.createdAt ? new Date(material.createdAt).toLocaleDateString() : 'Unknown date'}
                         </div>
                       </div>
                     </div>
@@ -1148,7 +1141,7 @@ const ARMSPlatform = () => {
         ) : (
           <div className="divide-y divide-gray-200">
             {rankings.map((user, index) => (
-              <div key={user.userId} className="p-6 hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => handleUserSelect(user)}>
+              <div key={user.userId} className="p-6 hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => handleUserSelect(user, 'rankings')}>
                 <div className="flex items-center space-x-4">
                   <div className="flex items-center justify-center w-8 h-8">
                     {index === 0 && <Trophy className="text-yellow-500" size={24} />}
@@ -1186,12 +1179,17 @@ const ARMSPlatform = () => {
           onClick={() => {
             setSelectedUser(null);
             setUserProfile(null);
-            // If viewing own profile, go back to home, otherwise go to rankings
-            setCurrentPage(selectedUser && selectedUser.userId === user.id ? 'home' : 'rankings');
+            if (profileBackTo === 'course') {
+              setCurrentPage('dashboard');
+            } else if (profileBackTo === 'home') {
+              setCurrentPage('home');
+            } else {
+              setCurrentPage('rankings');
+            }
           }}
           className="text-indigo-600 hover:text-indigo-700"
         >
-          ← Back to {selectedUser && selectedUser.userId === user.id ? 'home' : 'rankings'}
+          ← Back to {profileBackTo === 'course' ? 'course' : profileBackTo === 'home' ? 'home' : 'rankings'}
         </button>
         <h1 className="text-3xl font-bold text-gray-900">
           {selectedUser && selectedUser.userId === user.id ? 'My Profile' : `${userProfile?.name}'s Profile`}
