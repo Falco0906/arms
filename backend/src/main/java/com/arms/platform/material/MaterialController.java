@@ -34,7 +34,7 @@ public class MaterialController {
   public ResponseEntity<?> list(@PathVariable Long courseId){
     List<Material> materials = service.listForCourse(courseId);
     List<MaterialDto> dtos = materials.stream().map(m -> {
-      UserDto userDto = new UserDto(m.getUser().getId(), m.getUser().getName(), m.getUser().getEmail());
+      UserDto userDto = toUserDto(m.getUser());
       return new MaterialDto(
         m.getId(),                    // id
         m.getTitle(),                 // title
@@ -61,7 +61,7 @@ public class MaterialController {
     if (file==null || file.isEmpty()) return ResponseEntity.badRequest().body(Map.of("error","file required"));
     User currentUser = current();
     Material m = service.upload(courseId, currentUser, title, type, file);
-    UserDto userDto = new UserDto(m.getUser().getId(), m.getUser().getName(), m.getUser().getEmail());
+    UserDto userDto = toUserDto(m.getUser());
     MaterialDto dto = new MaterialDto(
       m.getId(),                    // id
       m.getTitle(),                 // title
@@ -89,5 +89,17 @@ public class MaterialController {
     if (!isOwner && !isAdmin) return ResponseEntity.status(403).body(Map.of("error","forbidden"));
     repo.delete(m);
     return ResponseEntity.noContent().build();
+  }
+
+  private UserDto toUserDto(User u){
+    UserDto dto = new UserDto();
+    dto.setId(u.getId());
+    dto.setEmail(u.getEmail());
+    dto.setFirstName(u.getName());
+    dto.setLastName("");
+    dto.setRole(u.getRole().name());
+    dto.setUploadCount(0);
+    dto.setCreatedAt(null);
+    return dto;
   }
 }
