@@ -299,7 +299,7 @@ const ARMSPlatform = () => {
       
       // Get recent materials (last 5 uploaded)
       const recent = materialsData.data
-        .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+        .sort((a, b) => new Date(b.uploadedAt || b.createdAt || 0) - new Date(a.uploadedAt || a.createdAt || 0))
         .slice(0, 5);
       setRecentMaterials(recent);
 
@@ -995,7 +995,7 @@ const ARMSPlatform = () => {
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-gray-400">
-                      {material.createdAt ? new Date(material.createdAt).toLocaleDateString() : 'Unknown date'}
+                      {(() => { const d = material.uploadedAt || material.createdAt; return d ? new Date(d).toLocaleDateString() : 'Unknown date'; })()}
                     </span>
                     <a 
                       href={getFileUrl(material.path)}
@@ -1098,7 +1098,7 @@ const ARMSPlatform = () => {
                           </button>
                         </div>
                         <div className="text-xs text-gray-500 mt-1">
-                          {material.createdAt ? new Date(material.createdAt).toLocaleDateString() : 'Unknown date'}
+                          {(() => { const d = material.uploadedAt || material.createdAt; return d ? new Date(d).toLocaleDateString() : 'Unknown date'; })()}
                         </div>
                       </div>
                     </div>
