@@ -40,8 +40,8 @@ const RegisterPage = ({ onBackToLogin, onRegister }) => {
 
     if (!formData.email.trim()) {
       newErrors.email = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Email is invalid';
+    } else if (!formData.email.toLowerCase().endsWith('@klh.edu.in')) {
+      newErrors.email = 'Only @klh.edu.in email addresses are allowed';
     }
 
     if (!formData.password) {

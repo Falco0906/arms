@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
 public interface MaterialRepository extends JpaRepository<Material, Long> {
+  @Query("SELECT m FROM Material m JOIN FETCH m.user WHERE m.course = ?1 ORDER BY m.createdAt DESC")
   List<Material> findByCourseOrderByCreatedAtDesc(Course course);
   List<Material> findByUserId(Long userId);
 

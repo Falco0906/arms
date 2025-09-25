@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, memo } from 'react';
 import { 
   Search, 
   Bell, 
@@ -6,26 +6,28 @@ import {
   Filter, 
   User, 
   FileText, 
-  Video, 
-  Image, 
   BookOpen, 
   Trophy, 
   Star,
   X,
   Plus,
   Home,
+  Inbox,
+  Pin,
+  PinOff,
   Settings,
   LogOut,
-  Eye,
   Download,
-  Calendar,
-  Users,
   AlertCircle,
   CheckCircle,
   Trash2
 } from 'lucide-react';
+import HomePage from './components/HomePage';
+import NotificationSidebar from './components/common/NotificationSidebar';
 import { authService } from './services/authService';
 import { courseAPI, materialAPI, rankingsAPI, newsAPI, userAPI, getFileUrl, handleAPIError } from './services/api';
+import SearchInput from './components/SearchInput';
+
 
 const ARMSPlatform = () => {
   const [currentPage, setCurrentPage] = useState('login');
@@ -45,7 +47,6 @@ const ARMSPlatform = () => {
   const [searchResults, setSearchResults] = useState([]);
   const [showRegister, setShowRegister] = useState(false);
   const [showCreateNews, setShowCreateNews] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
   const [newsForm, setNewsForm] = useState({
     title: '',
     content: '',
@@ -63,6 +64,12 @@ const ARMSPlatform = () => {
   const [news, setNews] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [isInboxOpen, setIsInboxOpen] = useState(false);
+  const [pinnedCourseIds, setPinnedCourseIds] = useState([]);
+  const [recentCourseIds, setRecentCourseIds] = useState([]);
+
+  const getPinsKey = (userId) => `arms:${userId}:pins`;
+  const getRecentsKey = (userId) => `arms:${userId}:recentCourses`;
   
   // Upload modal states
   const [uploadForm, setUploadForm] = useState({
@@ -73,6 +80,18 @@ const ARMSPlatform = () => {
   });
   const [uploading, setUploading] = useState(false);
 
+  const loadPinsRecentsFromStorage = (uid) => {
+    try {
+      const pins = JSON.parse(localStorage.getItem(getPinsKey(uid)) || '[]');
+      const recents = JSON.parse(localStorage.getItem(getRecentsKey(uid)) || '[]');
+      setPinnedCourseIds(Array.isArray(pins) ? pins : []);
+      setRecentCourseIds(Array.isArray(recents) ? recents : []);
+    } catch (e) {
+      setPinnedCourseIds([]);
+      setRecentCourseIds([]);
+    }
+  };
+
   // Check authentication on mount
   useEffect(() => {
     const token = authService.getToken();
@@ -81,16 +100,48 @@ const ARMSPlatform = () => {
     if (token && savedUser) {
       setUser(savedUser);
       setCurrentPage('home');
+      // load pins/recents from localStorage
+      loadPinsRecentsFromStorage(savedUser.id);
       loadInitialData();
+    }
+
+    // Load Google Identity script for login page
+    const scriptId = 'google-identity';
+    if (!document.getElementById(scriptId)) {
+      const s = document.createElement('script');
+      s.src = 'https://accounts.google.com/gsi/client';
+      s.async = true; s.defer = true; s.id = scriptId;
+      document.body.appendChild(s);
+      s.onload = () => {
+        if (window.google && window.google.accounts && document.getElementById('google-signin-container')) {
+          window.google.accounts.id.initialize({
+            client_id: process.env.REACT_APP_GOOGLE_CLIENT_ID || '',
+            callback: async (response) => {
+              try {
+                const res = await authService.loginWithGoogle(response.credential);
+                setUser(res.user);
+                setCurrentPage('home');
+                loadPinsRecentsFromStorage(res.user.id);
+                loadInitialData();
+              } catch (err) {
+                setError(err.error || 'Google sign-in failed');
+              }
+            },
+            auto_select: false,
+            hd: 'klh.edu.in'
+          });
+          window.google.accounts.id.renderButton(
+            document.getElementById('google-signin-container'),
+            { theme: 'outline', size: 'large', text: 'signin_with', shape: 'rectangular' }
+          );
+        }
+      };
     }
   }, []);
 
-  // Close dropdowns when clicking outside
+  // Close search dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (showNotifications && !event.target.closest('.notification-dropdown')) {
-        setShowNotifications(false);
-      }
       if (searchResults.length > 0 && !event.target.closest('.search-dropdown')) {
         setSearchResults([]);
       }
@@ -100,7 +151,7 @@ const ARMSPlatform = () => {
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showNotifications, searchResults.length]);
+  }, [searchResults.length]);
 
   const loadInitialData = async () => {
     setLoading(true);
@@ -130,6 +181,7 @@ const ARMSPlatform = () => {
       console.log('Login response:', response);
       setUser(response.user);
       setCurrentPage('home');
+      loadPinsRecentsFromStorage(response.user.id);
       loadInitialData();
     } catch (err) {
       setError(err.error || 'Login failed');
@@ -146,6 +198,7 @@ const ARMSPlatform = () => {
       setUser(response.user);
       setCurrentPage('home');
       setShowRegister(false);
+      loadPinsRecentsFromStorage(response.user.id);
       loadInitialData();
     } catch (err) {
       setError(err.error || 'Registration failed');
@@ -161,6 +214,9 @@ const ARMSPlatform = () => {
     setCourses([]);
     setRankings([]);
     setMaterials([]);
+    // keep pins/recents in localStorage, just clear in-memory
+    setPinnedCourseIds(prev => prev);
+    setRecentCourseIds(prev => prev);
   };
 
   const handleUpload = async () => {
@@ -174,10 +230,17 @@ const ARMSPlatform = () => {
     try {
       const formData = new FormData();
       formData.append('file', uploadForm.file);
-      formData.append('title', uploadForm.title);
+      formData.append('title', uploadForm.title || uploadForm.file.name);
       formData.append('type', uploadForm.type);
 
-      await materialAPI.uploadMaterial(uploadForm.courseId, formData);
+      console.log('Uploading file:', {
+        courseId: uploadForm.courseId,
+        fileName: uploadForm.file.name,
+        fileSize: uploadForm.file.size,
+        fileType: uploadForm.file.type
+      });
+
+      const response = await materialAPI.uploadMaterial(uploadForm.courseId, formData);
       setShowUploadModal(false);
       setUploadForm({ courseId: '', title: '', type: 'OTHER', file: null });
       
@@ -206,7 +269,20 @@ const ARMSPlatform = () => {
   const handleFileSelect = (event) => {
     const file = event.target.files[0];
     if (file) {
-      setUploadForm(prev => ({ ...prev, file }));
+      const maxSize = process.env.REACT_APP_MAX_FILE_SIZE || 104857600; // 100MB default
+      if (file.size > maxSize) {
+        setError(`File size (${(file.size / 1024 / 1024).toFixed(2)}MB) exceeds maximum limit of ${(maxSize / 1024 / 1024).toFixed(2)}MB`);
+        event.target.value = ''; // Reset file input
+        return;
+      }
+      setError(null);
+      // Auto-fill title if empty
+      setUploadForm(prev => ({ 
+        ...prev, 
+        file,
+        title: prev.title || file.name
+      }));
+      console.log('File selected:', { name: file.name, size: `${(file.size / 1024 / 1024).toFixed(2)}MB`, type: file.type });
     }
   };
 
@@ -225,6 +301,13 @@ const ARMSPlatform = () => {
         .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
         .slice(0, 5);
       setRecentMaterials(recent);
+
+      // update recent course ids
+      setRecentCourseIds(prev => {
+        const next = [course.id, ...prev.filter(id => id !== course.id)].slice(0, 5);
+        try { if (user?.id) localStorage.setItem(getRecentsKey(user.id), JSON.stringify(next)); } catch (e) {}
+        return next;
+      });
     } catch (err) {
       setError(handleAPIError(err));
     } finally {
@@ -232,17 +315,8 @@ const ARMSPlatform = () => {
     }
   };
 
-  const handleMaterialSearch = (query) => {
-    setMaterialSearchQuery(query);
-    filterMaterials(query, selectedMaterialType);
-  };
 
-  const handleMaterialTypeFilter = (type) => {
-    setSelectedMaterialType(type);
-    filterMaterials(materialSearchQuery, type);
-  };
-
-  const filterMaterials = (searchQuery, materialType) => {
+  const filterMaterials = useCallback((searchQuery, materialType) => {
     let filtered = materials;
     
     // Filter by search query
@@ -259,7 +333,7 @@ const ARMSPlatform = () => {
     }
     
     setFilteredMaterials(filtered);
-  };
+  }, [materials]);
 
   const handleUserSelect = async (user) => {
     console.log('handleUserSelect called with user:', user);
@@ -298,7 +372,7 @@ const ARMSPlatform = () => {
     }
   };
 
-  const handleUserSearch = async (query) => {
+  const handleUserSearch = useCallback(async (query) => {
     setUserSearchQuery(query);
     if (query.trim() === '') {
       setSearchResults([]);
@@ -311,7 +385,42 @@ const ARMSPlatform = () => {
     } catch (err) {
       setError(handleAPIError(err));
     }
-  };
+  }, []);
+
+  // Debounced user search to prevent too many API calls
+  const debouncedUserSearch = useCallback(
+    (value) => {
+      setSearchQuery(value);
+      const handler = () => handleUserSearch(value);
+      const timeoutId = setTimeout(handler, 300);
+      return () => clearTimeout(timeoutId);
+    },
+    [handleUserSearch]
+  );
+
+  const handleCourseSearch = useCallback((value) => {
+    setCourseSearchQuery(value);
+    if (value.trim() === '') {
+      setFilteredCourses(courses);
+    } else {
+      const filtered = courses.filter(course => 
+        course.title.toLowerCase().includes(value.toLowerCase()) ||
+        course.code.toLowerCase().includes(value.toLowerCase()) ||
+        (course.description && course.description.toLowerCase().includes(value.toLowerCase()))
+      );
+      setFilteredCourses(filtered);
+    }
+  }, [courses, setFilteredCourses]);
+
+  const handleMaterialSearch = useCallback((value) => {
+    setMaterialSearchQuery(value);
+    filterMaterials(value, selectedMaterialType);
+  }, [selectedMaterialType, filterMaterials]);
+
+  const handleMaterialTypeFilter = useCallback((type) => {
+    setSelectedMaterialType(type);
+    filterMaterials(materialSearchQuery, type);
+  }, [materialSearchQuery]);
 
   const LoginPage = () => (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
@@ -350,6 +459,13 @@ const ARMSPlatform = () => {
             onClick={() => {
               const email = document.getElementById('login-email').value;
               const password = document.getElementById('login-password').value;
+
+              // Validate email domain
+              if (!email.endsWith('@klh.edu.in')) {
+                setError('Only @klh.edu.in email addresses are allowed to login');
+                return;
+              }
+
               handleLogin(email, password);
             }}
             disabled={loading}
@@ -357,6 +473,12 @@ const ARMSPlatform = () => {
           >
             {loading ? 'Signing In...' : 'Sign In'}
           </button>
+          <div className="relative flex items-center py-2">
+            <div className="flex-grow border-t border-gray-200"></div>
+            <span className="mx-2 text-xs text-gray-400">OR</span>
+            <div className="flex-grow border-t border-gray-200"></div>
+          </div>
+          <div id="google-signin-container" className="flex justify-center"></div>
           <p className="text-center text-sm text-gray-600">
             Don't have an account? <span 
               className="text-indigo-600 cursor-pointer hover:underline"
@@ -415,6 +537,13 @@ const ARMSPlatform = () => {
               const name = document.getElementById('register-name').value;
               const email = document.getElementById('register-email').value;
               const password = document.getElementById('register-password').value;
+
+              // Validate email domain
+              if (!email.endsWith('@klh.edu.in')) {
+                setError('Only @klh.edu.in email addresses are allowed to register');
+                return;
+              }
+
               handleRegister({ name, email, password });
             }}
             disabled={loading}
@@ -434,7 +563,7 @@ const ARMSPlatform = () => {
   );
 
   const Sidebar = () => (
-    <div className="w-64 bg-white border-r border-gray-200 h-full flex flex-col">
+    <div className="w-64 bg-white border-r border-gray-200 h-full flex flex-col relative z-20">
       <div className="p-6 border-b border-gray-200">
         <div className="text-2xl font-bold text-indigo-600">ARMS</div>
         <p className="text-sm text-gray-600 mt-1">Welcome back, {user?.name}</p>
@@ -456,12 +585,104 @@ const ARMSPlatform = () => {
           <span>Dashboard</span>
         </button>
         <button 
+          onClick={() => {
+            setIsInboxOpen(prev => {
+              const next = !prev;
+              if (next) setNotifications(0);
+              return next;
+            });
+          }}
+          className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors ${currentPage === 'inbox' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-700 hover:bg-gray-100'}`}
+        >
+          <span className="flex items-center space-x-3">
+            <Inbox size={20} />
+            <span>Inbox</span>
+          </span>
+          {notifications > 0 && (
+            <span className="ml-2 bg-red-500 text-white text-xs rounded-full h-5 px-2 flex items-center justify-center">
+              {notifications}
+            </span>
+          )}
+        </button>
+        <button 
           onClick={() => setCurrentPage('rankings')}
           className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${currentPage === 'rankings' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-700 hover:bg-gray-100'}`}
         >
           <Trophy size={20} />
           <span>Rankings</span>
         </button>
+
+        {/* Pinned Courses */}
+        {pinnedCourseIds.length > 0 && (
+          <div className="pt-4">
+            <div className="text-xs font-semibold text-gray-500 px-3 mb-2">Pinned</div>
+            <div className="space-y-1">
+              {pinnedCourseIds
+                .map(id => courses.find(c => c.id === id))
+                .filter(Boolean)
+                .map(course => (
+                  <div key={course.id} className="group flex items-center justify-between px-3 py-2 rounded-lg hover:bg-gray-100">
+                    <button
+                      onClick={() => { setCurrentPage('dashboard'); handleCourseSelect(course); }}
+                      className="text-sm text-gray-700 truncate text-left flex-1"
+                      title={`${course.code} - ${course.title}`}
+                    >
+                      {course.code}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setPinnedCourseIds(prev => {
+                          const next = prev.filter(id => id !== course.id);
+                          try { localStorage.setItem('arms:pins', JSON.stringify(next)); } catch (e) {}
+                          return next;
+                        });
+                      }}
+                      className="opacity-70 group-hover:opacity-100 text-gray-500 hover:text-gray-700"
+                      title="Unpin"
+                    >
+                      <PinOff size={16} />
+                    </button>
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
+
+        {/* Recent Courses */}
+        {recentCourseIds.length > 0 && (
+          <div className="pt-4">
+            <div className="text-xs font-semibold text-gray-500 px-3 mb-2">Recent</div>
+            <div className="space-y-1">
+              {recentCourseIds
+                .map(id => courses.find(c => c.id === id))
+                .filter(Boolean)
+                .map(course => (
+                  <div key={course.id} className="group flex items-center justify-between px-3 py-2 rounded-lg hover:bg-gray-100">
+                    <button
+                      onClick={() => { setCurrentPage('dashboard'); handleCourseSelect(course); }}
+                      className="text-sm text-gray-700 truncate text-left flex-1"
+                      title={`${course.code} - ${course.title}`}
+                    >
+                      {course.code}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setPinnedCourseIds(prev => {
+                          const next = prev.includes(course.id) ? prev : [...prev, course.id];
+                          try { localStorage.setItem('arms:pins', JSON.stringify(next)); } catch (e) {}
+                          return next;
+                        });
+                      }}
+                      className="opacity-70 group-hover:opacity-100 text-gray-500 hover:text-gray-700"
+                      title="Pin"
+                    >
+                      <Pin size={16} />
+                    </button>
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
       </nav>
       
       <div className="p-4 border-t border-gray-200 space-y-2">
@@ -480,21 +701,20 @@ const ARMSPlatform = () => {
     </div>
   );
 
-  const Header = () => (
+  const Header = memo(() => (
     <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
       <div className="flex items-center space-x-4">
-        <div className="relative search-dropdown">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-          <input 
-            type="text" 
-            placeholder="Search courses, materials, or people..."
-            className="pl-10 pr-4 py-2 w-96 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              handleUserSearch(e.target.value);
-            }}
-          />
+        <div className="search-dropdown">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+            <input 
+              type="text" 
+              placeholder="Search courses, materials, or people..."
+              className="pl-10 pr-4 py-2 w-96 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              value={searchQuery}
+              onChange={(e) => debouncedUserSearch(e.target.value)}
+            />
+          </div>
           {searchResults.length > 0 && (
             <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-64 overflow-y-auto">
               {searchResults.map(user => (
@@ -528,207 +748,82 @@ const ARMSPlatform = () => {
           <span>Upload</span>
         </button>
         
-        <div className="relative notification-dropdown">
-          <Bell 
-            className="text-gray-600 cursor-pointer hover:text-gray-800" 
-            size={24} 
-            onClick={() => setShowNotifications(!showNotifications)}
-          />
-          {notifications > 0 && (
-            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-              {notifications}
-            </span>
-          )}
-          
-          {showNotifications && (
-            <div className="absolute top-full right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
-              <div className="p-4 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">Notifications</h3>
-              </div>
-              <div className="max-h-64 overflow-y-auto">
-                {notificationList.length === 0 ? (
-                  <div className="p-4 text-center text-gray-500">
-                    No notifications
-                  </div>
-                ) : (
-                  notificationList.map(notification => (
-                    <div key={notification.id} className="p-4 border-b border-gray-100 hover:bg-gray-50">
-                      <div className="flex items-start space-x-3">
-                        <div className="w-2 h-2 bg-indigo-600 rounded-full mt-2"></div>
-                        <div className="flex-1">
-                          <p className="text-sm text-gray-900">{notification.message}</p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            {notification.timestamp.toLocaleString()}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-              {notificationList.length > 0 && (
-                <div className="p-2 border-t border-gray-200">
-                  <button 
-                    onClick={() => {
-                      setNotificationList([]);
-                      setNotifications(0);
-                    }}
-                    className="w-full text-sm text-gray-600 hover:text-gray-800 py-2"
-                  >
-                    Clear all notifications
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-        
         <div 
           className="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-white font-semibold cursor-pointer hover:bg-indigo-700 transition-colors"
-          onClick={() => {
+          onClick={async () => {
             console.log('User object when clicking profile:', user);
             setSelectedUser({ userId: user.id, name: user.name });
-            setCurrentPage('user-profile');
+            setLoading(true);
+            setError(null);
+            try {
+              console.log('Fetching own profile for userId:', user.id);
+              const profileData = await userAPI.getUserProfile(user.id);
+              console.log('Own profile data received:', profileData.data);
+              setUserProfile(profileData.data);
+              setCurrentPage('user-profile');
+            } catch (err) {
+              console.error('Error fetching own profile:', err);
+              setError(handleAPIError(err));
+            } finally {
+              setLoading(false);
+            }
           }}
         >
           {user?.name?.charAt(0)}
         </div>
       </div>
     </div>
-  );
+  ));
 
-  const HomePage = () => (
+  const InboxView = () => (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">Welcome to ARMS</h1>
-        {(user?.role === 'FACULTY' || user?.role === 'ADMIN') && (
-          <button 
-            onClick={() => setShowCreateNews(true)}
-            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors flex items-center space-x-2"
-          >
-            <Plus size={16} />
-            <span>Create News</span>
-          </button>
+        <h1 className="text-3xl font-bold text-gray-900">Inbox</h1>
+        {notificationList.length > 0 && (
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setNotifications(0)}
+              className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
+            >
+              Mark all as read
+            </button>
+            <button
+              onClick={() => { setNotificationList([]); setNotifications(0); }}
+              className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
+            >
+              Clear all
+            </button>
+          </div>
         )}
       </div>
-      
-      {error && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-center space-x-2">
-          <AlertCircle className="text-red-500" size={20} />
-          <span className="text-red-700">{error}</span>
-        </div>
-      )}
-      
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-4">
-          {/* News and Announcements */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h3 className="text-xl font-semibold text-gray-900 mb-4">University News & Announcements</h3>
-            {loading ? (
-              <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
-                <p className="text-gray-600 mt-2">Loading...</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {news.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    No news or announcements available.
+
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+        {notificationList.length === 0 ? (
+          <div className="p-12 text-center text-gray-500">
+            You're all caught up
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-200">
+            {notificationList.map(item => (
+              <div key={item.id} className="p-4 hover:bg-gray-50">
+                <div className="flex items-start space-x-3">
+                  <div className="w-2 h-2 bg-indigo-600 rounded-full mt-2"></div>
+                  <div className="flex-1">
+                    <p className="text-sm text-gray-900">{item.message}</p>
+                    <p className="text-xs text-gray-500 mt-1">{item.timestamp.toLocaleString()}</p>
                   </div>
-                ) : (
-                  news.map((item, index) => (
-                    <div key={item.id} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center space-x-2">
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                            item.type === 'URGENT' ? 'bg-red-100 text-red-800' :
-                            item.type === 'ANNOUNCEMENT' ? 'bg-blue-100 text-blue-800' :
-                            item.type === 'EVENT' ? 'bg-green-100 text-green-800' :
-                            'bg-gray-100 text-gray-800'
-                          }`}>
-                            {item.type}
-                          </span>
-                        </div>
-                        <span className="text-sm text-gray-500">
-                          {new Date(item.createdAt).toLocaleDateString()}
-                        </span>
-                      </div>
-                      <h4 className="text-lg font-semibold text-gray-900 mb-2">{item.title}</h4>
-                      <p className="text-gray-600 text-sm line-clamp-2">{item.content}</p>
-                      <div className="mt-2 text-xs text-gray-500">
-                        By {item.author?.name || 'Unknown'}
-                      </div>
-                    </div>
-                  ))
-                )}
+                </div>
               </div>
-            )}
+            ))}
           </div>
-          
-          {/* Recent Activity */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h3 className="text-xl font-semibold text-gray-900 mb-4">Top Contributors</h3>
-            {loading ? (
-              <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
-                <p className="text-gray-600 mt-2">Loading...</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {rankings.slice(0, 5).map((user, index) => (
-                  <div key={user.userId} className="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
-                       onClick={() => setSelectedUser(user)}>
-                    <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
-                      <span className="text-indigo-600 font-semibold">{index + 1}</span>
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-900">{user.name}</p>
-                      <p className="text-sm text-gray-500">{user.uploads} uploads</p>
-                    </div>
-                  </div>
-                ))}
-              </div>                      
-            )}
-          </div>
-        </div>
-        
-        <div className="space-y-6">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Stats</h3>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-gray-600">Total Courses</span>
-                <span className="font-semibold">{courses.length}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-600">Top Contributors</span>
-                <span className="font-semibold">{rankings.length}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-600">Recent News</span>
-                <span className="font-semibold">{news.length}</span>
-              </div>
-            </div>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
 
-  const Dashboard = () => {
-    const handleCourseSearch = (query) => {
-      setCourseSearchQuery(query);
-      if (query.trim() === '') {
-        setFilteredCourses(courses);
-      } else {
-        const filtered = courses.filter(course => 
-          course.title.toLowerCase().includes(query.toLowerCase()) ||
-          course.code.toLowerCase().includes(query.toLowerCase()) ||
-          (course.description && course.description.toLowerCase().includes(query.toLowerCase()))
-        );
-        setFilteredCourses(filtered);
-      }
-    };
+  // HomePage component is imported from './components/HomePage'
+
+  const Dashboard = memo(() => {
 
     const applyCourseFilter = () => {
       if (selectedCourses.length === 0) {
@@ -822,9 +917,9 @@ const ARMSPlatform = () => {
         )}
       </div>
     );
-  };
+  });
 
-  const CourseDetail = () => (
+  const CourseDetail = memo(() => (
     <div className="p-6 space-y-6">
       <div className="flex items-center space-x-4">
         <button 
@@ -875,9 +970,23 @@ const ARMSPlatform = () => {
                       {material.type}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-500 mb-2">
-                    {material.size ? `${(material.size / 1024 / 1024).toFixed(1)} MB` : 'Unknown size'}
-                  </p>
+                  <div className="flex items-center space-x-2 mb-2">
+                    {material.uploader ? (
+                      <>
+                        <button 
+                          onClick={() => handleUserSelect({ userId: material.uploader.id, name: material.uploader.name })}
+                          className="text-sm text-gray-600 hover:text-indigo-600 flex items-center space-x-1"
+                        >
+                          <User size={14} />
+                          <span>{material.uploader.name}</span>
+                        </button>
+                        <span className="text-gray-400">•</span>
+                      </>
+                    ) : null}
+                    <span className="text-sm text-gray-500">
+                      {material.size ? `${(material.size / 1024 / 1024).toFixed(1)} MB` : 'Unknown size'}
+                    </span>
+                  </div>
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-gray-400">
                       {material.createdAt ? new Date(material.createdAt).toLocaleDateString() : 'Unknown date'}
@@ -958,7 +1067,7 @@ const ARMSPlatform = () => {
                       </div>
                       <div>
                         <h3 className="text-lg font-semibold text-gray-900">{material.title}</h3>
-                        <p className="text-sm text-gray-500">
+                        <div className="flex items-center space-x-3">
                           <span className={`px-2 py-1 text-xs font-medium rounded-full ${
                             material.type === 'NOTES' ? 'bg-blue-100 text-blue-800' :
                             material.type === 'ASSIGNMENT' ? 'bg-green-100 text-green-800' :
@@ -969,8 +1078,27 @@ const ARMSPlatform = () => {
                           }`}>
                             {material.type}
                           </span>
-                          {' '}• {material.size ? `${(material.size / 1024 / 1024).toFixed(1)} MB` : 'Unknown size'}
-                        </p>
+                          <span className="text-sm text-gray-500">
+                            • {material.size ? `${(material.size / 1024 / 1024).toFixed(1)} MB` : 'Unknown size'}
+                          </span>
+                        </div>
+                        <div className="flex items-center mt-1">
+                          {material.uploader ? (
+                            <>
+                              <button 
+                                onClick={() => handleUserSelect({ userId: material.uploader.id, name: material.uploader.name })}
+                                className="text-sm text-gray-600 hover:text-indigo-600 flex items-center space-x-1"
+                              >
+                                <User size={14} />
+                                <span>{material.uploader.name}</span>
+                              </button>
+                              <span className="text-gray-400 mx-2">•</span>
+                            </>
+                          ) : null}
+                          <span className="text-sm text-gray-500">
+                            {material.createdAt ? new Date(material.createdAt).toLocaleDateString() : 'Unknown date'}
+                          </span>
+                        </div>
                       </div>
                     </div>
                     <div className="flex items-center space-x-2">
@@ -991,7 +1119,7 @@ const ARMSPlatform = () => {
         )}
       </div>
     </div>
-  );
+  ));
 
   const Rankings = () => (
     <div className="p-6 space-y-6">
@@ -1077,6 +1205,10 @@ const ARMSPlatform = () => {
         </div>
       )}
       
+      {(() => {
+        console.log('Profile render state:', { loading, userProfile, selectedUser });
+        return null;
+      })()}
       {loading ? (
         <div className="text-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
@@ -1272,6 +1404,27 @@ const ARMSPlatform = () => {
               onChange={handleFileSelect}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
             />
+            {uploadForm.file && (
+              <div className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <FileText size={16} className="text-gray-500" />
+                    <div>
+                      <p className="text-sm font-medium text-gray-700">{uploadForm.file.name}</p>
+                      <p className="text-xs text-gray-500">
+                        {(uploadForm.file.size / 1024 / 1024).toFixed(2)} MB • {uploadForm.file.type || 'Unknown type'}
+                      </p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => setUploadForm(prev => ({ ...prev, file: null }))}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
           
           <div className="flex space-x-3 pt-4">
@@ -1294,7 +1447,7 @@ const ARMSPlatform = () => {
     </div>
   );
 
-  const FilterModal = () => (
+  const FilterModal = memo(() => (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl max-w-md w-full p-6">
         <div className="flex items-center justify-between mb-4">
@@ -1312,7 +1465,7 @@ const ARMSPlatform = () => {
               placeholder="Search courses..."
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
               value={courseSearchQuery}
-              onChange={(e) => setCourseSearchQuery(e.target.value)}
+              onChange={(e) => handleCourseSearch(e.target.value)}
             />
           </div>
         </div>
@@ -1371,7 +1524,7 @@ const ARMSPlatform = () => {
         </div>
       </div>
     </div>
-  );
+  ));
 
   const CreateNewsModal = () => {
     const handleCreateNews = async () => {
@@ -1484,7 +1637,7 @@ const ARMSPlatform = () => {
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header />
         <div className="flex-1 overflow-y-auto">
-          {currentPage === 'home' && <HomePage />}
+          {currentPage === 'home' && <HomePage user={user} setShowCreateNews={setShowCreateNews} error={error} />}
           {currentPage === 'dashboard' && selectedCourse ? (
             <CourseDetail />
           ) : currentPage === 'dashboard' ? (
@@ -1498,6 +1651,13 @@ const ARMSPlatform = () => {
       {showUploadModal && <UploadModal />}
       {showFilterModal && <FilterModal />}
       {showCreateNews && <CreateNewsModal />}
+      <NotificationSidebar 
+        isOpen={isInboxOpen}
+        onClose={() => setIsInboxOpen(false)}
+        items={notificationList}
+        onMarkAllRead={() => setNotifications(0)}
+        onClearAll={() => { setNotificationList([]); setNotifications(0); }}
+      />
     </div>
   );
 };

@@ -1,11 +1,16 @@
 package com.arms.platform.material;
 
 import com.arms.platform.user.User;
+import com.arms.platform.dto.MaterialDto;
+import com.arms.platform.dto.UserDto;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import java.time.ZoneId;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import java.util.Map;
 
@@ -27,7 +32,25 @@ public class MaterialController {
 
   @GetMapping("/courses/{courseId}/materials")
   public ResponseEntity<?> list(@PathVariable Long courseId){
-    return ResponseEntity.ok(service.listForCourse(courseId));
+    List<Material> materials = service.listForCourse(courseId);
+    List<MaterialDto> dtos = materials.stream().map(m -> {
+      UserDto userDto = new UserDto(m.getUser().getId(), m.getUser().getName(), m.getUser().getEmail());
+      return new MaterialDto(
+        m.getId(),                    // id
+        m.getTitle(),                 // title
+        "",                          // description
+        "/api/files/" + m.getPath(), // fileUrl - adding proper API prefix
+        m.getPath().substring(m.getPath().lastIndexOf('/') + 1), // fileName
+        m.getType().toString(),      // fileType
+        m.getSize(),                 // fileSize
+        null,                        // contentType
+        null,                        // course
+        userDto,                     // uploader
+        m.getCreatedAt().atZone(ZoneId.systemDefault()).toLocalDateTime(), // uploadedAt
+        0                            // downloadCount
+      );
+    }).collect(Collectors.toList());
+    return ResponseEntity.ok(dtos);
   }
 
   @PostMapping(value="/courses/{courseId}/materials", consumes={"multipart/form-data"})
@@ -36,14 +59,24 @@ public class MaterialController {
                                   @RequestParam(defaultValue="OTHER") MaterialType type,
                                   @RequestParam("file") MultipartFile file) throws Exception {
     if (file==null || file.isEmpty()) return ResponseEntity.badRequest().body(Map.of("error","file required"));
-    Material m = service.upload(courseId, current(), title, type, file);
-    return ResponseEntity.ok(Map.of(
-      "id", m.getId(),
-      "title", m.getTitle(),
-      "type", m.getType(),
-      "path", m.getPath(),
-      "size", m.getSize()
-    ));
+    User currentUser = current();
+    Material m = service.upload(courseId, currentUser, title, type, file);
+    UserDto userDto = new UserDto(m.getUser().getId(), m.getUser().getName(), m.getUser().getEmail());
+    MaterialDto dto = new MaterialDto(
+      m.getId(),                    // id
+      m.getTitle(),                 // title
+      "",                          // description
+      "/api/files/" + m.getPath(), // fileUrl - adding proper API prefix
+      m.getPath().substring(m.getPath().lastIndexOf('/') + 1), // fileName
+      m.getType().toString(),      // fileType
+      m.getSize(),                 // fileSize
+      null,                        // contentType
+      null,                        // course
+      userDto,                     // uploader
+      m.getCreatedAt().atZone(ZoneId.systemDefault()).toLocalDateTime(), // uploadedAt
+      0                           // downloadCount
+    );
+    return ResponseEntity.ok(dto);
   }
 
   @DeleteMapping("/materials/{id}")

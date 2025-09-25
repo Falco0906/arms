@@ -22,10 +22,13 @@ public class UserController {
     
     @GetMapping("/{id}")
     public ResponseEntity<?> getUserProfile(@PathVariable Long id) {
+        System.out.println("Getting profile for user ID: " + id);
         User user = userRepository.findById(id).orElse(null);
         if (user == null) {
+            System.out.println("User not found for ID: " + id);
             return ResponseEntity.notFound().build();
         }
+        System.out.println("Found user: " + user.getName() + " (" + user.getEmail() + ")");
         
         // Get user's materials grouped by course
         List<Material> userMaterials = materialRepository.findByUserId(id);

@@ -3,6 +3,11 @@ import { authAPI } from './api';
 export const authService = {
   async login(email, password) {
     try {
+      // Validate email domain
+      if (!email.endsWith('@klh.edu.in')) {
+        throw { response: { data: { error: 'Only @klh.edu.in email addresses are allowed to login' } } };
+      }
+
       const response = await authAPI.login({ email, password });
       if (response.data.accessToken) {
         localStorage.setItem('authToken', response.data.accessToken);
@@ -16,6 +21,11 @@ export const authService = {
 
   async register(userData) {
     try {
+      // Validate email domain
+      if (!userData.email.endsWith('@klh.edu.in')) {
+        throw { response: { data: { error: 'Only @klh.edu.in email addresses are allowed to register' } } };
+      }
+
       const response = await authAPI.register(userData);
       if (response.data.accessToken) {
         localStorage.setItem('authToken', response.data.accessToken);
@@ -24,6 +34,19 @@ export const authService = {
       return response.data;
     } catch (error) {
       throw error.response?.data || { error: 'Registration failed' };
+    }
+  },
+
+  async loginWithGoogle(idToken) {
+    try {
+      const response = await authAPI.googleLogin(idToken);
+      if (response.data.accessToken) {
+        localStorage.setItem('authToken', response.data.accessToken);
+        localStorage.setItem('user', JSON.stringify(response.data.user));
+      }
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || { error: 'Google login failed' };
     }
   },
 

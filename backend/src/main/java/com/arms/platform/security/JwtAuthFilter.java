@@ -7,10 +7,11 @@ import jakarta.servlet.*;
 import jakarta.servlet.http.*;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import java.io.IOException;
-import java.util.Collections;
+import java.util.List;
 
 @Component
 public class JwtAuthFilter extends GenericFilter {
@@ -32,11 +33,18 @@ public class JwtAuthFilter extends GenericFilter {
         Claims claims = jwt.parse(token).getBody();
         String email = claims.getSubject();
         users.findByEmail(email).ifPresent(u -> {
-          UsernamePasswordAuthenticationToken at =
-            new UsernamePasswordAuthenticationToken(u, null, Collections.emptyList());
-          SecurityContextHolder.getContext().setAuthentication(at);
+          // Create authorities based on user role
+          List<SimpleGrantedAuthority> authorities = List.of(
+            new SimpleGrantedAuthority("ROLE_" + u.getRole().name())
+          );
+          UsernamePasswordAuthenticationToken authToken =
+            new UsernamePasswordAuthenticationToken(u, null, authorities);
+          SecurityContextHolder.getContext().setAuthentication(authToken);
         });
-      } catch (Exception ignored) {}
+      } catch (Exception ignored) {
+        // Token is invalid, clear any existing authentication
+        SecurityContextHolder.clearContext();
+      }
     }
     chain.doFilter(req, res);
   }

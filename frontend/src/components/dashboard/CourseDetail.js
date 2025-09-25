@@ -21,56 +21,25 @@ const CourseDetail = ({ course, onBack }) => {
   const [selectedType, setSelectedType] = useState('all');
   const [showUploadModal, setShowUploadModal] = useState(false);
 
-  // Mock materials data - in real app, this would come from API
+  // Fetch materials data from API
   useEffect(() => {
-    const mockMaterials = [
-      {
-        id: 1,
-        title: 'Introduction to Data Structures',
-        description: 'Comprehensive notes covering arrays, linked lists, and basic algorithms',
-        type: 'notes',
-        uploader: 'Prof. Johnson',
-        uploadedAt: '2 hours ago',
-        downloadCount: 45,
-        fileSize: '2.3 MB',
-        fileType: 'PDF'
-      },
-      {
-        id: 2,
-        title: 'Assignment 1: Array Implementation',
-        description: 'First assignment focusing on array operations and basic algorithms',
-        type: 'assignment',
-        uploader: 'Prof. Johnson',
-        uploadedAt: '1 day ago',
-        downloadCount: 89,
-        fileSize: '156 KB',
-        fileType: 'DOCX'
-      },
-      {
-        id: 3,
-        title: 'Lab 2: Linked List Operations',
-        description: 'Practical implementation of linked list data structure',
-        type: 'code',
-        uploader: 'TA Sarah Chen',
-        uploadedAt: '3 days ago',
-        downloadCount: 67,
-        fileSize: '1.8 MB',
-        fileType: 'ZIP'
-      },
-      {
-        id: 4,
-        title: 'Week 3 Lecture Slides',
-        description: 'Presentation slides covering advanced data structure concepts',
-        type: 'presentation',
-        uploader: 'Prof. Johnson',
-        uploadedAt: '1 week ago',
-        downloadCount: 123,
-        fileSize: '4.2 MB',
-        fileType: 'PPTX'
+    const fetchMaterials = async () => {
+      try {
+        const response = await fetch(`/api/courses/${course.id}/materials`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch materials');
+        }
+        const data = await response.json();
+        setMaterials(data);
+        setFilteredMaterials(data);
+      } catch (error) {
+        console.error('Error fetching materials:', error);
       }
-    ];
-    setMaterials(mockMaterials);
-    setFilteredMaterials(mockMaterials);
+    };
+
+    if (course?.id) {
+      fetchMaterials();
+    }
   }, []);
 
   useEffect(() => {
@@ -212,17 +181,17 @@ const CourseDetail = ({ course, onBack }) => {
                     <div className="flex items-center space-x-6 text-sm text-gray-500">
                       <span className="flex items-center">
                         <User size={14} className="mr-1" />
-                        {material.uploader}
+                        {material.uploader ? material.uploader.name : 'Unknown'}
                       </span>
                       <span className="flex items-center">
                         <Clock size={14} className="mr-1" />
-                        {material.uploadedAt}
+                        {new Date(material.uploadedAt).toLocaleDateString()}
                       </span>
                       <span className="flex items-center">
                         <Download size={14} className="mr-1" />
-                        {material.downloadCount} downloads
+                        {material.downloadCount || 0} downloads
                       </span>
-                      <span>{material.fileSize}</span>
+                      <span>{formatFileSize(material.fileSize)}</span>
                     </div>
                   </div>
                   

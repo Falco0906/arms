@@ -40,6 +40,7 @@ api.interceptors.response.use(
 export const authAPI = {
   login: (credentials) => api.post('/auth/login', credentials),
   register: (userData) => api.post('/auth/register', userData),
+  googleLogin: (idToken) => api.post('/auth/google', { idToken }),
   getCurrentUser: () => api.get('/auth/me'),
 };
 
@@ -56,6 +57,11 @@ export const materialAPI = {
   uploadMaterial: (courseId, formData) => api.post(`/courses/${courseId}/materials`, formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
+    },
+    timeout: 30000, // Increase timeout for file uploads
+    onUploadProgress: (progressEvent) => {
+      const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+      console.log('Upload progress:', percentCompleted);
     },
   }),
   getMaterialsByCourse: (courseId) => api.get(`/courses/${courseId}/materials`),
@@ -95,9 +101,12 @@ export const getFileUrl = (path) => {
 
 // Error handling utility
 export const handleAPIError = (error) => {
+  console.error('API Error:', error);
+
   if (error.response) {
     // Server responded with error status
     const { status, data } = error.response;
+    console.log('Server error response:', { status, data });
     
     switch (status) {
       case 400:

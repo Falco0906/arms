@@ -36,9 +36,15 @@ public class SecurityConfig {
         }))
         .authorizeHttpRequests(auth -> auth
             .requestMatchers("/api/auth/**","/actuator/health","/files/**").permitAll()
+            .requestMatchers("/api/courses").permitAll() // Allow public access to course listing
+            .requestMatchers("/api/courses/*/materials").permitAll() // Allow public access to materials
+            .requestMatchers("/api/news/**").permitAll() // Allow public access to news
+            .requestMatchers("/api/rankings/**").permitAll() // Allow public access to rankings
+            .requestMatchers("/api/auth/test").permitAll() // Allow test endpoint
             .anyRequest().authenticated()
         )
-        .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+        .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+        .sessionManagement(session -> session.sessionCreationPolicy(org.springframework.security.config.http.SessionCreationPolicy.STATELESS));
     return http.build();
   }
 

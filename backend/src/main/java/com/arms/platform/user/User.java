@@ -12,6 +12,7 @@ public class User {
   private String name;
 
   @Column(nullable=false, unique=true)
+  @com.arms.platform.validation.KlhEmail
   private String email;
 
   @Column(nullable=false)
