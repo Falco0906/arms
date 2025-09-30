@@ -38,6 +38,26 @@ public class Material {
   @Column(nullable=false, updatable=false)
   private Instant createdAt = Instant.now();
 
+  // NEW FIELDS for enhanced file handling:
+  
+  @Column(name = "original_filename")
+  private String originalFilename;
+  
+  @Column(name = "file_type") 
+  private String fileType; // MIME type
+  
+  @Column(name = "description")
+  private String description;
+  
+  @Column(name = "download_count")
+  private Long downloadCount = 0L;
+
+  // Store file bytes directly in DB when configured
+  @Lob
+  @Column(name = "content")
+  private byte[] content;
+
+  // EXISTING getters/setters
   public Long getId(){return id;}
   public Course getCourse(){return course;}
   public void setCourse(Course c){this.course=c;}
@@ -52,4 +72,20 @@ public class Material {
   public Long getSize(){return size;}
   public void setSize(Long s){this.size=s;}
   public Instant getCreatedAt(){return createdAt;}
+  
+  // NEW getters/setters
+  public String getOriginalFilename() { return originalFilename; }
+  public void setOriginalFilename(String originalFilename) { this.originalFilename = originalFilename; }
+  
+  public String getFileType() { return fileType; }
+  public void setFileType(String fileType) { this.fileType = fileType; }
+  
+  public String getDescription() { return description; }
+  public void setDescription(String description) { this.description = description; }
+  
+  public Long getDownloadCount() { return downloadCount; }
+  public void setDownloadCount(Long downloadCount) { this.downloadCount = downloadCount; }
+
+  public byte[] getContent() { return content; }
+  public void setContent(byte[] content) { this.content = content; }
 }

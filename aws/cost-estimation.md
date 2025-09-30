@@ -118,7 +118,7 @@ This document provides detailed cost estimates for running the ARMS Platform on 
 ### Development Environment
 | Service | Configuration | Monthly Cost |
 |---------|---------------|--------------|
-| EC2 (t3.micro) | 1 instance | $7.59 |
+| EC2 (t3.micro) | 1 instance | $7.59 | 
 | RDS (db.t3.micro) | Single AZ | $12.41 |
 | S3 Storage | 20GB | $0.46 |
 | S3 Requests | 1K requests | $0.004 |

@@ -13,6 +13,7 @@ import {
   Plus,
   Home,
   Inbox,
+  Heart,
   Pin,
   PinOff,
   Settings,
@@ -24,6 +25,7 @@ import {
 } from 'lucide-react';
 import HomePage from './components/HomePage';
 import NotificationSidebar from './components/common/NotificationSidebar';
+import FileUpload from './components/upload/FileUpload';
 import { authService } from './services/authService';
 import { courseAPI, materialAPI, rankingsAPI, newsAPI, userAPI, getFileUrl, handleAPIError } from './services/api';
 import SearchInput from './components/SearchInput';
@@ -289,6 +291,7 @@ const ARMSPlatform = () => {
 
   const handleCourseSelect = async (course) => {
     setSelectedCourse(course);
+    setUploadForm(prev => ({ ...prev, courseId: course?.id || '' }));
     setLoading(true);
     setMaterialSearchQuery('');
     setSelectedMaterialType('ALL');
@@ -751,7 +754,7 @@ const ARMSPlatform = () => {
       
       <div className="flex items-center space-x-4">
         <button 
-          onClick={() => setShowUploadModal(true)}
+          onClick={() => { if (selectedCourse?.id) setUploadForm(prev => ({ ...prev, courseId: selectedCourse.id })); setShowUploadModal(true); }}
           className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors flex items-center space-x-2"
         >
           <Upload size={16} />
@@ -1376,109 +1379,108 @@ const ARMSPlatform = () => {
   );
 
   const UploadModal = () => (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl max-w-md w-full p-6">
-        <div className="flex items-center justify-between mb-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl max-w-2xl w-full mx-4 p-6">
+        <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold text-gray-900">Upload Material</h2>
-          <button onClick={() => setShowUploadModal(false)}>
-            <X className="text-gray-400 hover:text-gray-600" size={24} />
+          <button 
+            onClick={() => setShowUploadModal(false)}
+            className="text-gray-500 hover:text-gray-700"
+          >
+            ✕
           </button>
         </div>
         
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center space-x-2">
-            <AlertCircle className="text-red-500" size={16} />
-            <span className="text-red-700 text-sm">{error}</span>
-          </div>
-        )}
+        {/* Course selection */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-1">Course</label>
+          <select
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+            value={uploadForm.courseId || ''}
+            onChange={(e) => setUploadForm(prev => ({ ...prev, courseId: e.target.value }))}
+          >
+            <option value="">Select a course</option>
+            {courses.map(c => (
+              <option key={c.id} value={c.id}>{c.code} - {c.title}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Content Type */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Content Type</label>
+          <select 
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+            value={uploadForm.type}
+            onChange={(e) => setUploadForm(prev => ({ ...prev, type: e.target.value }))}
+          >
+            <option value="OTHER">Other</option>
+            <option value="NOTES">Lecture Notes</option>
+            <option value="ASSIGNMENT">Assignment</option>
+            <option value="CODE">Code/Lab</option>
+            <option value="PPT">Presentation</option>
+            <option value="DOC">Document</option>
+          </select>
+        </div>
         
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Course</label>
-            <select 
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-              value={uploadForm.courseId}
-              onChange={(e) => setUploadForm(prev => ({ ...prev, courseId: e.target.value }))}
-            >
-              <option value="">Select a course</option>
-              {courses.map(course => (
-                <option key={course.id} value={course.id}>{course.code} - {course.title}</option>
-              ))}
-            </select>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Content Type</label>
-            <select 
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-              value={uploadForm.type}
-              onChange={(e) => setUploadForm(prev => ({ ...prev, type: e.target.value }))}
-            >
-              <option value="OTHER">Other</option>
-              <option value="NOTES">Lecture Notes</option>
-              <option value="ASSIGNMENT">Assignment</option>
-              <option value="CODE">Code/Lab</option>
-              <option value="PPT">Presentation</option>
-              <option value="DOC">Document</option>
-            </select>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
-            <input 
-              type="text" 
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" 
-              placeholder="Enter material title"
-              value={uploadForm.title}
-              onChange={(e) => setUploadForm(prev => ({ ...prev, title: e.target.value }))}
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">File</label>
-            <input
-              type="file"
-              onChange={handleFileSelect}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-            />
-            {uploadForm.file && (
-              <div className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <FileText size={16} className="text-gray-500" />
-                    <div>
-                      <p className="text-sm font-medium text-gray-700">{uploadForm.file.name}</p>
-                      <p className="text-xs text-gray-500">
-                        {(uploadForm.file.size / 1024 / 1024).toFixed(2)} MB • {uploadForm.file.type || 'Unknown type'}
-                      </p>
-                    </div>
+        {/* Title */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+          <input 
+            type="text" 
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" 
+            placeholder="Enter material title"
+            value={uploadForm.title}
+            onChange={(e) => setUploadForm(prev => ({ ...prev, title: e.target.value }))}
+          />
+        </div>
+        
+        {/* File */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">File</label>
+          <input
+            type="file"
+            onChange={handleFileSelect}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+          />
+          {uploadForm.file && (
+            <div className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <FileText size={16} className="text-gray-500" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">{uploadForm.file.name}</p>
+                    <p className="text-xs text-gray-500">
+                      {(uploadForm.file.size / 1024 / 1024).toFixed(2)} MB • {uploadForm.file.type || 'Unknown type'}
+                    </p>
                   </div>
-                  <button 
-                    onClick={() => setUploadForm(prev => ({ ...prev, file: null }))}
-                    className="text-gray-400 hover:text-gray-600"
-                  >
-                    <X size={16} />
-                  </button>
                 </div>
+                <button 
+                  onClick={() => setUploadForm(prev => ({ ...prev, file: null }))}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X size={16} />
+                </button>
               </div>
-            )}
-          </div>
-          
-          <div className="flex space-x-3 pt-4">
-            <button 
-              onClick={() => setShowUploadModal(false)}
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              Cancel
-            </button>
-            <button 
-              onClick={handleUpload}
-              disabled={uploading || !uploadForm.courseId || !uploadForm.file}
-              className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
-            >
-              {uploading ? 'Uploading...' : 'Upload'}
-            </button>
-          </div>
+            </div>
+          )}
+        </div>
+        
+        {/* Actions */}
+        <div className="flex space-x-3 pt-4">
+          <button 
+            onClick={() => setShowUploadModal(false)}
+            className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Cancel
+          </button>
+          <button 
+            onClick={handleUpload}
+            disabled={uploading || !uploadForm.courseId || !uploadForm.file}
+            className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
+          >
+            {uploading ? 'Uploading...' : 'Upload'}
+          </button>
         </div>
       </div>
     </div>

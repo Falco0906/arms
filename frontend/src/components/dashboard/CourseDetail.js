@@ -11,8 +11,10 @@ import {
   Calendar,
   User,
   Clock,
-  ArrowLeft
+  ArrowLeft,
+  X
 } from 'lucide-react';
+import FileUpload from '../upload/FileUpload';
 
 const CourseDetail = ({ course, onBack }) => {
   const [materials, setMaterials] = useState([]);
@@ -20,27 +22,80 @@ const CourseDetail = ({ course, onBack }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState('all');
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Fetch materials data from API
+  // Updated to use the actual API endpoint
   useEffect(() => {
     const fetchMaterials = async () => {
+      if (!course?.id) return;
+      
       try {
-        const response = await fetch(`/api/courses/${course.id}/materials`);
+        setLoading(true);
+        const response = await fetch(`/api/materials/course/${course.id}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          },
+        });
+        
         if (!response.ok) {
           throw new Error('Failed to fetch materials');
         }
+        
         const data = await response.json();
-        setMaterials(data);
-        setFilteredMaterials(data);
+        
+        // Transform the API response to match your UI expectations
+        const transformedData = data.map(material => ({
+          id: material.id,
+          title: material.originalFilename,
+          description: material.description || 'No description provided',
+          type: mapCategoryToType(material.category),
+          uploader: { name: 'User' }, // You'd need to join with user data
+          uploadedAt: material.uploadTimestamp,
+          downloadCount: 0, // Not tracking downloads yet
+          fileSize: material.fileSize,
+          downloadUrl: material.downloadUrl,
+          category: material.category
+        }));
+        
+        setMaterials(transformedData);
+        setFilteredMaterials(transformedData);
+        setError(null);
       } catch (error) {
         console.error('Error fetching materials:', error);
+        setError(error.message);
+      } finally {
+        setLoading(false);
       }
     };
 
-    if (course?.id) {
-      fetchMaterials();
+    fetchMaterials();
+  }, [course?.id]);
+
+  // Map database categories to your UI types
+  const mapCategoryToType = (category) => {
+    switch (category) {
+      case 'NOTES': return 'notes';
+      case 'ASSIGNMENT': return 'assignment';
+      case 'CODE': return 'code';
+      case 'PPT': return 'presentation';
+      case 'DOC': return 'document';
+      case 'OTHER': return 'document';
+      default: return 'document';
     }
-  }, []);
+  };
+
+  // Map UI types back to database categories
+  const mapTypeToCategory = (type) => {
+    switch (type) {
+      case 'notes': return 'NOTES';
+      case 'assignment': return 'ASSIGNMENT';
+      case 'code': return 'CODE';
+      case 'presentation': return 'PPT';
+      case 'document': return 'DOC';
+      default: return 'OTHER';
+    }
+  };
 
   useEffect(() => {
     let filtered = materials;
@@ -58,6 +113,61 @@ const CourseDetail = ({ course, onBack }) => {
     
     setFilteredMaterials(filtered);
   }, [searchQuery, selectedType, materials]);
+
+  // Handle successful file upload
+  const handleUploadSuccess = (uploadResult) => {
+    console.log('File uploaded successfully:', uploadResult);
+    
+    // Refresh the materials list
+    const fetchMaterials = async () => {
+      try {
+        const response = await fetch(`/api/materials/course/${course.id}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          },
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          const transformedData = data.map(material => ({
+            id: material.id,
+            title: material.originalFilename || material.filename,
+            description: material.description || 'No description provided',
+            type: mapCategoryToType(material.category),
+            uploader: { name: material.uploaderName || 'User' },
+            uploadedAt: material.uploadTimestamp,
+            downloadCount: material.downloadCount || 0,
+            fileSize: material.fileSize,
+            downloadUrl: material.downloadUrl,
+            category: material.category
+          }));
+          
+          setMaterials(transformedData);
+        }
+      } catch (error) {
+        console.error('Error refreshing materials:', error);
+      }
+    };
+    
+    fetchMaterials();
+    setShowUploadModal(false);
+  };
+
+  // Handle file download
+  const handleDownload = (material) => {
+    const link = document.createElement('a');
+    link.href = material.downloadUrl;
+    link.download = material.title;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Handle file preview
+  const handlePreview = (material) => {
+    const previewUrl = `/api/materials/${material.id}/view`;
+    window.open(previewUrl, '_blank');
+  };
 
   const getTypeIcon = (type) => {
     switch (type) {
@@ -87,6 +197,22 @@ const CourseDetail = ({ course, onBack }) => {
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
+  if (loading) {
+    return (
+      <div className="p-6 space-y-6">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-1/4 mb-4"></div>
+          <div className="h-4 bg-gray-200 rounded w-1/2 mb-8"></div>
+          <div className="space-y-4">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="h-20 bg-gray-200 rounded"></div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -102,6 +228,13 @@ const CourseDetail = ({ course, onBack }) => {
           <p className="text-gray-600">{course.name}</p>
         </div>
       </div>
+
+      {/* Error State */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-red-600">Error: {error}</p>
+        </div>
+      )}
 
       {/* Search and Filter Bar */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
@@ -157,7 +290,12 @@ const CourseDetail = ({ course, onBack }) => {
           <div className="text-center py-12">
             <FileText size={48} className="mx-auto text-gray-400 mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">No materials found</h3>
-            <p className="text-gray-500">Try adjusting your search or filter criteria</p>
+            <p className="text-gray-500">
+              {searchQuery || selectedType !== 'all' 
+                ? 'Try adjusting your search or filter criteria'
+                : 'Upload your first material to get started'
+              }
+            </p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -196,10 +334,18 @@ const CourseDetail = ({ course, onBack }) => {
                   </div>
                   
                   <div className="flex items-center space-x-2">
-                    <button className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
+                    <button 
+                      onClick={() => handlePreview(material)}
+                      className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                      title="Preview"
+                    >
                       <Eye size={16} className="text-gray-600" />
                     </button>
-                    <button className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
+                    <button 
+                      onClick={() => handleDownload(material)}
+                      className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                      title="Download"
+                    >
                       <Download size={16} className="text-gray-600" />
                     </button>
                   </div>
@@ -210,18 +356,27 @@ const CourseDetail = ({ course, onBack }) => {
         )}
       </div>
 
-      {/* Upload Modal would go here */}
+      {/* Upload Modal */}
       {showUploadModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-md w-full p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Upload Material</h2>
-            <p className="text-gray-600 mb-4">Upload functionality will be implemented here</p>
-            <button 
-              onClick={() => setShowUploadModal(false)}
-              className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-            >
-              Close
-            </button>
+          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-gray-900">Upload Material</h2>
+                <button 
+                  onClick={() => setShowUploadModal(false)}
+                  className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  <X size={20} className="text-gray-500" />
+                </button>
+              </div>
+              
+              <FileUpload 
+                courseId={course.id}
+                uploaderId={(JSON.parse(localStorage.getItem('user')||'{}')).id}
+                onUploadSuccess={handleUploadSuccess}
+              />
+            </div>
           </div>
         </div>
       )}
