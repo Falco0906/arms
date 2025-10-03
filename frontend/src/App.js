@@ -28,10 +28,12 @@ import NotificationSidebar from './components/common/NotificationSidebar';
 import FileUpload from './components/upload/FileUpload';
 import { authService } from './services/authService';
 import { courseAPI, materialAPI, rankingsAPI, newsAPI, userAPI, getFileUrl, handleAPIError } from './services/api';
+import { enhancedFeaturesService } from './services/enhancedFeatures';
 import SearchInput from './components/SearchInput';
 
 
 const ARMSPlatform = () => {
+  console.log('🚀 ARMS Platform loaded with fallback authentication!');
   const [currentPage, setCurrentPage] = useState('login');
   const [user, setUser] = useState(null);
   const [selectedCourses, setSelectedCourses] = useState([]);
@@ -915,6 +917,32 @@ const ARMSPlatform = () => {
                       <FileText size={16} className="mr-1" />
                       View materials
                     </span>
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        try {
+                          // Get course materials for exam pack
+                          const materials = await materialAPI.getCourseFiles(course.id);
+                          await enhancedFeaturesService.generateExamPack(
+                            course.id, 
+                            course.code,
+                            materials.data || []
+                          );
+                        } catch (error) {
+                          console.log('Exam pack generation requires setup');
+                          // Fallback: create a simple exam pack
+                          const zip = new (await import('jszip')).default();
+                          zip.file(`${course.code}_ExamPack.txt`, `Exam Pack for ${course.code}\n\nThis feature requires Firebase setup for full functionality.`);
+                          const content = await zip.generateAsync({ type: 'blob' });
+                          const { saveAs } = await import('file-saver');
+                          saveAs(content, `${course.code}_ExamPack.zip`);
+                        }
+                      }}
+                      className="px-2 py-1 bg-green-100 text-green-700 rounded-md hover:bg-green-200 transition-colors text-xs"
+                      title="Generate Exam Pack"
+                    >
+                      📦 Exam Pack
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1009,6 +1037,50 @@ const ARMSPlatform = () => {
                       <Download size={14} />
                       <span>Download</span>
                     </a>
+                  </div>
+                  {/* Enhanced Features */}
+                  <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-100">
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={async () => {
+                          try {
+                            await enhancedFeaturesService.rateMaterial(material.id, 1);
+                          } catch (error) {
+                            console.log('Rating requires Firebase setup');
+                          }
+                        }}
+                        className="p-1 rounded-full hover:bg-green-100 text-green-600 transition-colors"
+                        title="Thumbs up"
+                      >
+                        <Star size={14} />
+                      </button>
+                      <button
+                        onClick={async () => {
+                          try {
+                            await enhancedFeaturesService.rateMaterial(material.id, -1);
+                          } catch (error) {
+                            console.log('Rating requires Firebase setup');
+                          }
+                        }}
+                        className="p-1 rounded-full hover:bg-red-100 text-red-600 transition-colors"
+                        title="Thumbs down"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        try {
+                          await enhancedFeaturesService.pinMaterial(material.id, material);
+                        } catch (error) {
+                          console.log('Pinning requires Firebase setup');
+                        }
+                      }}
+                      className="p-1 rounded-full hover:bg-orange-100 text-orange-600 transition-colors"
+                      title="Pin material"
+                    >
+                      <Pin size={14} />
+                    </button>
                   </div>
                 </div>
               ))}

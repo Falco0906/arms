@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug ARMS Platform</title>
+</head>
+<body>
+    <h1>Debug Test</h1>
+    <p>Testing authentication fallback...</p>
+    
+    <script>
+        // Test the fallback authentication
+        async function testLogin() {
+            try {
+                const response = await fetch('http://localhost:8080/api/courses');
+                console.log('Backend response:', response.status);
+            } catch (error) {
+                console.log('Backend not available - this should trigger fallback');
+            }
+        }
+        
+        testLogin();
+        
+        // Test if we can login with test credentials
+        const testLogin2 = async () => {
+            const email = 'test@klh.edu.in';
+            const password = 'test123';
+            
+            try {
+                const authResponse = await fetch('http://localhost:8080/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                console.log('Auth backend response:', authResponse.status);
+            } catch (error) {
+                console.log('Auth backend failed - should use fallback:', error.message);
+                
+                // Simulate fallback
+                const mockUser = {
+                    id: 1,
+                    email: email,
+                    fullName: email.split('@')[0],
+                    firstName: email.split('@')[0],
+                    role: 'STUDENT'
+                };
+                const mockToken = 'mock-jwt-token-' + Date.now();
+                localStorage.setItem('authToken', mockToken);
+                localStorage.setItem('user', JSON.stringify(mockUser));
+                console.log('Fallback authentication successful:', mockUser);
+            }
+        };
+        
+        testLogin2();
+    </script>
+</body>
+</html>
