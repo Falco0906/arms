@@ -6,7 +6,7 @@ import { newsService as fbNewsSvc } from './firebase/news';
 import { userService as fbUserSvc } from './firebase/users';
 import { chatService as fbChatSvc } from './firebase/chat';
 
-const USE_FIREBASE = String(process.env.REACT_APP_USE_FIREBASE || '').toLowerCase() === 'true';
+const USE_FIREBASE = String(process.env.REACT_APP_USE_FIREBASE ?? 'true').toLowerCase() === 'true';
 
 // Create axios instance with default configuration
 const api = axios.create({
@@ -92,24 +92,54 @@ export const materialAPI = {
   uploadMaterial: async (courseId, formData) => {
     if (USE_FIREBASE) {
       const file = formData.get('file');
-      const meta = { title: formData.get('title'), description: '', uploaderId: JSON.parse(localStorage.getItem('user') || '{}').id };
+      let uploaderId = undefined;
+      try { uploaderId = JSON.parse(localStorage.getItem('user') || '{}').id; } catch (_) { uploaderId = undefined; }
+      const meta = { 
+        title: formData.get('title'), 
+        description: '', 
+        materialType: formData.get('type') || 'OTHER',
+        uploaderId 
+      };
       const res = await fbMaterialSvc.uploadMaterial(courseId, file, meta);
       return { data: res };
     }
-    return api.post(`/courses/${courseId}/materials`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-      timeout: 30000,
-      onUploadProgress: (progressEvent) => {
-        const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-        console.log('Upload progress:', percentCompleted);
-      },
-    });
+    try {
+      return await api.post(`/courses/${courseId}/materials`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 15000,
+        onUploadProgress: (progressEvent) => {
+          const percentCompleted = progressEvent.total ? Math.round((progressEvent.loaded * 100) / progressEvent.total) : 0;
+          console.log('Upload progress:', percentCompleted);
+        },
+      });
+    } catch (error) {
+      // Network/timeout fallback to Firebase if available
+      const isNetwork = !error.response || error.code === 'ECONNABORTED';
+      if (isNetwork) {
+        try {
+          const file = formData.get('file');
+          let uploaderId = undefined;
+          try { uploaderId = JSON.parse(localStorage.getItem('user') || '{}').id; } catch (_) { uploaderId = undefined; }
+          const meta = { title: formData.get('title'), description: '', materialType: formData.get('type') || 'OTHER', uploaderId };
+          const res = await fbMaterialSvc.uploadMaterial(courseId, file, meta);
+          return { data: res };
+        } catch (fbErr) {
+          throw fbErr;
+        }
+      }
+      throw error;
+    }
   },
   getMaterialsByCourse: async (courseId) => USE_FIREBASE ? { data: await fbMaterialSvc.getMaterialsByCourse(courseId) } : api.get(`/courses/${courseId}/materials`),
   deleteMaterial: async (id) => USE_FIREBASE ? { data: await fbMaterialSvc.deleteMaterial(id) } : api.delete(`/materials/${id}`),
   isLikedByUser: async (materialId, userId) => USE_FIREBASE ? { data: await fbMaterialSvc.isLikedByUser(materialId, userId) } : { data: false },
   getLikesCount: async (materialId) => USE_FIREBASE ? { data: await fbMaterialSvc.getLikesCount(materialId) } : { data: 0 },
   toggleLike: async (materialId, user) => USE_FIREBASE ? { data: await fbMaterialSvc.toggleLike(materialId, user) } : { data: { liked: false } },
+  // Comments
+  subscribeToComments: (materialId, cb) => fbMaterialSvc.subscribeToComments(materialId, cb),
+  addComment: async (materialId, payload) => USE_FIREBASE ? { data: await fbMaterialSvc.addComment(materialId, payload) } : { data: null },
+  deleteComment: async (materialId, commentId) => USE_FIREBASE ? { data: await fbMaterialSvc.deleteComment(materialId, commentId) } : { data: null },
+  getCommentsCount: async (materialId) => USE_FIREBASE ? { data: await fbMaterialSvc.getCommentsCount(materialId) } : { data: 0 },
 };
 
 // Rankings API

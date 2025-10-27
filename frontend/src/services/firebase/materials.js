@@ -1,27 +1,48 @@
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { collection, doc, addDoc, getDoc, getDocs, setDoc, query, where, orderBy, limit as fbLimit, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, addDoc, getDoc, getDocs, setDoc, query, where, orderBy, limit as fbLimit, deleteDoc, updateDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { storage, db } from '../../firebase';
 
 export const materialService = {
   uploadMaterial: async (courseId, file, metadata) => {
+    if (!storage || !db) {
+      throw new Error('Firebase is not configured for storage/database');
+    }
     const timestamp = Date.now();
     const filename = `${courseId}/${timestamp}_${file.name}`;
     const storageRef = ref(storage, `materials/${filename}`);
-    const snapshot = await uploadBytes(storageRef, file);
-    const downloadUrl = await getDownloadURL(snapshot.ref);
-    const materialRef = await addDoc(collection(db, 'materials'), {
+    let snapshot;
+    try {
+      snapshot = await uploadBytes(storageRef, file);
+    } catch (e) {
+      console.error('Firebase uploadBytes failed:', e);
+      throw e;
+    }
+    let downloadUrl;
+    try {
+      downloadUrl = await getDownloadURL(snapshot.ref);
+    } catch (e) {
+      console.error('Firebase getDownloadURL failed:', e);
+      throw e;
+    }
+    let materialRef;
+    try {
+      materialRef = await addDoc(collection(db, 'materials'), {
       courseId,
       title: metadata.title || file.name,
       description: metadata.description || '',
       filename: file.name,
       path: filename,
       url: downloadUrl,
-      type: file.type,
+      type: (metadata.materialType || 'OTHER'),
       size: file.size,
       uploaderId: metadata.uploaderId,
       downloads: 0,
       createdAt: serverTimestamp()
     });
+    } catch (e) {
+      console.error('Firebase addDoc(materials) failed:', e);
+      throw e;
+    }
     return { id: materialRef.id, url: downloadUrl };
   },
   searchMaterials: async (term) => {
@@ -43,6 +64,9 @@ export const materialService = {
     }
   },
   getMaterialsByCourse: async (courseId) => {
+    if (!db) {
+      throw new Error('Firebase is not configured for database');
+    }
     try {
       const q = query(
         collection(db, 'materials'),
@@ -66,6 +90,9 @@ export const materialService = {
     return querySnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
   },
   deleteMaterial: async (materialId) => {
+    if (!storage || !db) {
+      throw new Error('Firebase is not configured for storage/database');
+    }
     const materialDoc = await getDoc(doc(db, 'materials', materialId));
     if (!materialDoc.exists()) throw new Error('Material not found');
     const materialData = materialDoc.data();
@@ -74,20 +101,32 @@ export const materialService = {
     await deleteDoc(doc(db, 'materials', materialId));
   },
   incrementDownloads: async (materialId) => {
+    if (!db) {
+      throw new Error('Firebase is not configured for database');
+    }
     const materialRef = doc(db, 'materials', materialId);
     const materialDoc = await getDoc(materialRef);
     if (!materialDoc.exists()) throw new Error('Material not found');
     await updateDoc(materialRef, { downloads: (materialDoc.data().downloads || 0) + 1 });
   },
   isLikedByUser: async (materialId, userId) => {
+    if (!db) {
+      throw new Error('Firebase is not configured for database');
+    }
     const likeDoc = await getDoc(doc(db, 'materials', materialId, 'likes', userId));
     return likeDoc.exists();
   },
   getLikesCount: async (materialId) => {
+    if (!db) {
+      throw new Error('Firebase is not configured for database');
+    }
     const snap = await getDocs(collection(db, 'materials', materialId, 'likes'));
     return snap.size;
   },
   toggleLike: async (materialId, user) => {
+    if (!db) {
+      throw new Error('Firebase is not configured for database');
+    }
     const likeRef = doc(db, 'materials', materialId, 'likes', user.id);
     const exists = (await getDoc(likeRef)).exists();
     if (exists) {
@@ -97,5 +136,32 @@ export const materialService = {
       await setDoc(likeRef, { userId: user.id, userName: user.name || user.email || '', createdAt: serverTimestamp() });
       return { liked: true };
     }
-  }
+  },
+  subscribeToComments: (materialId, cb) => {
+    if (!db) throw new Error('Firebase is not configured for database');
+    const q = query(collection(db, 'materials', materialId, 'comments'), orderBy('createdAt', 'asc'));
+    return onSnapshot(q, (snap) => {
+      const comments = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      cb(comments);
+    });
+  },
+  addComment: async (materialId, { userId, userName, text }) => {
+    if (!db) throw new Error('Firebase is not configured for database');
+    if (!text || !text.trim()) return;
+    await addDoc(collection(db, 'materials', materialId, 'comments'), {
+      userId,
+      userName,
+      text: text.trim(),
+      createdAt: serverTimestamp(),
+    });
+  },
+  deleteComment: async (materialId, commentId) => {
+    if (!db) throw new Error('Firebase is not configured for database');
+    await deleteDoc(doc(db, 'materials', materialId, 'comments', commentId));
+  },
+  getCommentsCount: async (materialId) => {
+    if (!db) throw new Error('Firebase is not configured for database');
+    const snap = await getDocs(collection(db, 'materials', materialId, 'comments'));
+    return snap.size;
+  },
 };

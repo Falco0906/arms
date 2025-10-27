@@ -86,6 +86,11 @@ const ARMSPlatform = () => {
   const chatSearchTimeoutRef = useRef(null);
   const [pinnedCourseIds, setPinnedCourseIds] = useState([]);
   const [recentCourseIds, setRecentCourseIds] = useState([]);
+  const [commentsMap, setCommentsMap] = useState({});
+  const [commentsOpen, setCommentsOpen] = useState({});
+  const [commentInputs, setCommentInputs] = useState({});
+  const [commentCounts, setCommentCounts] = useState({});
+  const commentUnsubsRef = useRef({});
 
   const getPinsKey = (userId) => `arms:${userId}:pins`;
   const getRecentsKey = (userId) => `arms:${userId}:recentCourses`;
@@ -277,6 +282,10 @@ const ARMSPlatform = () => {
     setUploading(true);
     setError(null);
     try {
+      const timeoutId = setTimeout(() => {
+        try { setUploading(false); } catch (_) {}
+        try { setError('Upload timed out. Please check your network or configuration and try again.'); } catch (_) {}
+      }, 30000);
       const formData = new FormData();
       formData.append('file', uploadForm.file);
       formData.append('title', uploadForm.title || uploadForm.file.name);
@@ -290,6 +299,7 @@ const ARMSPlatform = () => {
       });
 
       const response = await materialAPI.uploadMaterial(uploadForm.courseId, formData);
+      clearTimeout(timeoutId);
       setShowUploadModal(false);
       setUploadForm({ courseId: '', title: '', type: 'OTHER', file: null });
       
@@ -309,7 +319,11 @@ const ARMSPlatform = () => {
       const rankingsData = await rankingsAPI.getTopUploaders(10);
       setRankings(rankingsData.data);
     } catch (err) {
-      setError(handleAPIError(err));
+      try {
+        setError(handleAPIError(err));
+      } catch (_) {
+        setError('Upload failed. Please try again.');
+      }
     } finally {
       setUploading(false);
     }
@@ -352,6 +366,8 @@ const ARMSPlatform = () => {
         const likesEntries = await Promise.all(ids.map(async (id) => [id, await materialAPI.isLikedByUser(id, user?.id).then(r => r.data).catch(() => false)]));
         setLikesCountMap(Object.fromEntries(countsEntries));
         setLikedMap(Object.fromEntries(likesEntries));
+        const commentsCountsEntries = await Promise.all(ids.map(async (id) => [id, await materialAPI.getCommentsCount(id).then(r => r.data).catch(() => 0)]));
+        setCommentCounts(Object.fromEntries(commentsCountsEntries));
       } catch (e) {}
       
       // Get recent materials (last 5 uploaded)
@@ -603,6 +619,60 @@ const ARMSPlatform = () => {
       setError(handleAPIError(err));
     }
   }, [user]);
+
+  // Comments handlers
+  const toggleComments = useCallback((materialId) => {
+    setCommentsOpen(prev => {
+      const next = { ...prev, [materialId]: !prev[materialId] };
+      const nowOpen = next[materialId];
+      if (nowOpen && !commentUnsubsRef.current[materialId]) {
+        commentUnsubsRef.current[materialId] = materialAPI.subscribeToComments(materialId, (comments) => {
+          setCommentsMap(prevMap => ({ ...prevMap, [materialId]: comments }));
+          setCommentCounts(prevCounts => ({ ...prevCounts, [materialId]: comments.length }));
+        });
+      } else if (!nowOpen && commentUnsubsRef.current[materialId]) {
+        try { commentUnsubsRef.current[materialId](); } catch (_) {}
+        delete commentUnsubsRef.current[materialId];
+      }
+      return next;
+    });
+  }, []);
+
+  const handleCommentInputChange = useCallback((materialId, value) => {
+    setCommentInputs(prev => ({ ...prev, [materialId]: value }));
+  }, []);
+
+  const addCommentToMaterial = useCallback(async (materialId) => {
+    const text = (commentInputs[materialId] || '').trim();
+    if (!text || !user?.id) return;
+    try {
+      await materialAPI.addComment(materialId, { userId: user.id, userName: user.name || user.email || '', text });
+      setCommentInputs(prev => ({ ...prev, [materialId]: '' }));
+    } catch (err) {
+      setError(handleAPIError(err));
+    }
+  }, [commentInputs, user]);
+
+  const deleteCommentFromMaterial = useCallback(async (materialId, comment) => {
+    if (!user?.id || comment.userId !== user.id) return;
+    try {
+      await materialAPI.deleteComment(materialId, comment.id);
+    } catch (err) {
+      setError(handleAPIError(err));
+    }
+  }, [user]);
+
+  // Cleanup all comment subscriptions when switching course or unmounting
+  useEffect(() => {
+    return () => {
+      const map = commentUnsubsRef.current || {};
+      Object.values(map).forEach((unsub) => { try { unsub && unsub(); } catch (_) {} });
+      commentUnsubsRef.current = {};
+      setCommentsOpen({});
+      setCommentsMap({});
+      setCommentInputs({});
+    };
+  }, [selectedCourse?.id]);
 
   // Overlays defined after handlers to avoid temporal dead zone
   const CourseChatEl = (
@@ -1444,6 +1514,16 @@ const ARMSPlatform = () => {
                           <span className="text-sm">{likesCountMap[material.id] || 0}</span>
                         </div>
                       </button>
+                      <button
+                        onClick={() => toggleComments(material.id)}
+                        className={`p-2 rounded-lg transition-colors ${commentsOpen[material.id] ? 'text-indigo-700 bg-indigo-50' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
+                        title="Comments"
+                      >
+                        <div className="flex items-center space-x-1">
+                          <MessageCircle size={16} />
+                          <span className="text-sm">{commentCounts[material.id] || 0}</span>
+                        </div>
+                      </button>
                       <a 
                         href={getFileUrl(material.path)}
                         target="_blank"
@@ -1455,6 +1535,39 @@ const ARMSPlatform = () => {
                       </a>
                     </div>
                   </div>
+                  {commentsOpen[material.id] && (
+                    <div className="mt-4 border-t border-gray-100 pt-4">
+                      <div className="max-h-48 overflow-y-auto space-y-3">
+                        {(commentsMap[material.id] || []).map(c => (
+                          <div key={c.id} className="text-sm">
+                            <div className="flex items-baseline justify-between">
+                              <div className="flex items-baseline space-x-2">
+                                <span className="font-medium text-gray-800">{c.userId === (user?.id) ? 'You' : (c.userName || 'User')}</span>
+                                <span className="text-xs text-gray-400">{c.createdAt?.toDate ? c.createdAt.toDate().toLocaleString() : (c.createdAt ? new Date(c.createdAt).toLocaleString() : '')}</span>
+                              </div>
+                              {c.userId === (user?.id) && (
+                                <button className="text-xs text-red-500 hover:text-red-700" onClick={() => deleteCommentFromMaterial(material.id, c)}>Delete</button>
+                              )}
+                            </div>
+                            <div className="text-gray-700">{c.text}</div>
+                          </div>
+                        ))}
+                        {(commentsMap[material.id] || []).length === 0 && (
+                          <div className="text-center text-gray-400">No comments yet</div>
+                        )}
+                      </div>
+                      <div className="mt-3 flex items-center space-x-2">
+                        <input
+                          value={commentInputs[material.id] || ''}
+                          onChange={(e) => handleCommentInputChange(material.id, e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') addCommentToMaterial(material.id); }}
+                          placeholder="Write a comment"
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                        />
+                        <button onClick={() => addCommentToMaterial(material.id)} disabled={!((commentInputs[material.id] || '').trim())} className="px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50">Post</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))
             )}
