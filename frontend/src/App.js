@@ -20,12 +20,14 @@ import {
   Download,
   AlertCircle,
   CheckCircle,
-  Trash2
+  Trash2,
+  ThumbsUp,
+  MessageCircle
 } from 'lucide-react';
 import HomePage from './components/HomePage';
 import NotificationSidebar from './components/common/NotificationSidebar';
 import { authService } from './services/authService';
-import { courseAPI, materialAPI, rankingsAPI, newsAPI, userAPI, searchAPI, getFileUrl, handleAPIError } from './services/api';
+import { courseAPI, materialAPI, rankingsAPI, newsAPI, userAPI, searchAPI, chatAPI, getFileUrl, handleAPIError } from './services/api';
 import SearchInput from './components/SearchInput';
 
 
@@ -62,10 +64,26 @@ const ARMSPlatform = () => {
   const [materialSearchQuery, setMaterialSearchQuery] = useState('');
   const [selectedMaterialType, setSelectedMaterialType] = useState('ALL');
   const [recentMaterials, setRecentMaterials] = useState([]);
+  const [likesCountMap, setLikesCountMap] = useState({});
+  const [likedMap, setLikedMap] = useState({});
   const [news, setNews] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [isInboxOpen, setIsInboxOpen] = useState(false);
+  const [showCourseChat, setShowCourseChat] = useState(false);
+  const [courseMessages, setCourseMessages] = useState([]);
+  const [courseChatText, setCourseChatText] = useState('');
+  const courseChatUnsubRef = useRef(null);
+  const [showGlobalChat, setShowGlobalChat] = useState(false);
+  const [conversations, setConversations] = useState([]);
+  const [activeConversation, setActiveConversation] = useState(null);
+  const [dmMessages, setDmMessages] = useState([]);
+  const [dmText, setDmText] = useState('');
+  const dmUnsubRef = useRef(null);
+  const convUnsubRef = useRef(null);
+  const [chatUserQuery, setChatUserQuery] = useState('');
+  const [chatUserResults, setChatUserResults] = useState([]);
+  const chatSearchTimeoutRef = useRef(null);
   const [pinnedCourseIds, setPinnedCourseIds] = useState([]);
   const [recentCourseIds, setRecentCourseIds] = useState([]);
 
@@ -327,6 +345,14 @@ const ARMSPlatform = () => {
       const materialsData = await materialAPI.getMaterialsByCourse(course.id);
       setMaterials(materialsData.data);
       setFilteredMaterials(materialsData.data);
+      // Load likes (counts and current user's like state)
+      try {
+        const ids = materialsData.data.map(m => m.id);
+        const countsEntries = await Promise.all(ids.map(async (id) => [id, await materialAPI.getLikesCount(id).then(r => r.data).catch(() => 0)]));
+        const likesEntries = await Promise.all(ids.map(async (id) => [id, await materialAPI.isLikedByUser(id, user?.id).then(r => r.data).catch(() => false)]));
+        setLikesCountMap(Object.fromEntries(countsEntries));
+        setLikedMap(Object.fromEntries(likesEntries));
+      } catch (e) {}
       
       // Get recent materials (last 5 uploaded)
       const recent = materialsData.data
@@ -513,6 +539,182 @@ const ARMSPlatform = () => {
     setSelectedMaterialType(type);
     filterMaterials(materialSearchQuery, type);
   }, [materialSearchQuery]);
+
+  const handleToggleLike = async (materialId) => {
+    try {
+      const res = await materialAPI.toggleLike(materialId, user);
+      const liked = !!res.data?.liked;
+      setLikedMap(prev => ({ ...prev, [materialId]: liked }));
+      setLikesCountMap(prev => ({ ...prev, [materialId]: Math.max(0, (prev[materialId] || 0) + (liked ? 1 : -1)) }));
+    } catch (err) {
+      setError(handleAPIError(err));
+    }
+  };
+
+  // Course chat subscriptions
+  useEffect(() => {
+    if (!showCourseChat || !selectedCourse?.id) return;
+    if (courseChatUnsubRef.current) courseChatUnsubRef.current();
+    courseChatUnsubRef.current = chatAPI.subscribeToCourseMessages(selectedCourse.id, (msgs) => setCourseMessages(msgs));
+    return () => { if (courseChatUnsubRef.current) courseChatUnsubRef.current(); };
+  }, [showCourseChat, selectedCourse?.id]);
+
+  const sendCourseChat = async () => {
+    if (!courseChatText.trim() || !selectedCourse?.id) return;
+    try { await chatAPI.sendCourseMessage(selectedCourse.id, { userId: user.id, userName: user.name, text: courseChatText }); setCourseChatText(''); } catch (err) { setError(handleAPIError(err)); }
+  };
+
+  // Global chat subscriptions
+  useEffect(() => {
+    if (!showGlobalChat || !user?.id) return;
+    if (convUnsubRef.current) convUnsubRef.current();
+    convUnsubRef.current = chatAPI.subscribeToUserConversations(user.id, (convs) => setConversations(convs));
+    return () => { if (convUnsubRef.current) convUnsubRef.current(); };
+  }, [showGlobalChat, user?.id]);
+
+  const openConversation = (conv) => {
+    setActiveConversation(conv);
+    if (dmUnsubRef.current) dmUnsubRef.current();
+    dmUnsubRef.current = chatAPI.subscribeToDM(conv.id, (msgs) => setDmMessages(msgs));
+  };
+
+  const sendDM = async () => {
+    if (!activeConversation?.id || !dmText.trim()) return;
+    try { await chatAPI.sendDM(activeConversation.id, { userId: user.id, userName: user.name, text: dmText }); setDmText(''); } catch (err) { setError(handleAPIError(err)); }
+  };
+
+  const handleChatUserSearch = useCallback((value) => {
+    setChatUserQuery(value);
+    if (chatSearchTimeoutRef.current) clearTimeout(chatSearchTimeoutRef.current);
+    chatSearchTimeoutRef.current = setTimeout(async () => {
+      if (!value.trim()) { setChatUserResults([]); return; }
+      try { const res = await userAPI.searchUsers(value); setChatUserResults(res.data || []); } catch (e) { /* ignore */ }
+    }, 300);
+  }, []);
+
+  const startDMWithUser = useCallback(async (target) => {
+    try {
+      const conv = await chatAPI.getOrCreateDMConversation(user, { id: target.id, name: target.name || target.email || '' });
+      setShowGlobalChat(true);
+      openConversation(conv);
+      setChatUserResults([]);
+      setChatUserQuery('');
+    } catch (err) {
+      setError(handleAPIError(err));
+    }
+  }, [user]);
+
+  // Overlays defined after handlers to avoid temporal dead zone
+  const CourseChatEl = (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl max-w-2xl w-full p-6 flex flex-col h-[70vh]">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-gray-900">Course Chat · {selectedCourse?.code}</h2>
+          <button onClick={() => { if (courseChatUnsubRef.current) courseChatUnsubRef.current(); setShowCourseChat(false); }}>
+            <X className="text-gray-400 hover:text-gray-600" size={24} />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto space-y-3 border border-gray-100 rounded-lg p-3">
+          {courseMessages.map(m => (
+            <div key={m.id} className="text-sm">
+              <div className="flex items-baseline space-x-2">
+                <span className="font-medium text-gray-800">{m.userId === (user?.id) ? 'You' : (m.userName || 'User')}</span>
+                <span className="text-xs text-gray-400">{m.createdAt?.toDate ? m.createdAt.toDate().toLocaleString() : (m.createdAt ? new Date(m.createdAt).toLocaleString() : '')}</span>
+              </div>
+              <div className="text-gray-700">{m.text}</div>
+            </div>
+          ))}
+          {courseMessages.length === 0 && (
+            <div className="text-center text-gray-400">No messages yet. Say hello!</div>
+          )}
+        </div>
+        <div className="mt-3 flex items-center space-x-2">
+          <input
+            value={courseChatText}
+            onChange={(e) => setCourseChatText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') sendCourseChat(); }}
+            placeholder="Type a message"
+            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+          />
+          <button onClick={sendCourseChat} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Send</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  const GlobalChatEl = (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl w-full max-w-4xl p-6 h-[80vh] flex flex-col">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-gray-900">Messages</h2>
+          <button onClick={() => { if (convUnsubRef.current) convUnsubRef.current(); if (dmUnsubRef.current) dmUnsubRef.current(); setShowGlobalChat(false); setActiveConversation(null); }}>
+            <X className="text-gray-400 hover:text-gray-600" size={24} />
+          </button>
+        </div>
+        <div className="grid grid-cols-3 gap-4 flex-1 min-h-0">
+          <div className="col-span-1 border border-gray-100 rounded-lg flex flex-col">
+            <div className="p-3 border-b border-gray-100">
+              <SearchInput
+                className="w-full"
+                placeholder="Search users to chat..."
+                value={chatUserQuery}
+                onChange={handleChatUserSearch}
+              />
+              {chatUserResults.length > 0 && (
+                <div className="mt-2 max-h-40 overflow-y-auto border border-gray-100 rounded-lg">
+                  {chatUserResults.map(u => (
+                    <div key={u.id} className="p-2 cursor-pointer hover:bg-gray-50" onClick={() => startDMWithUser(u)}>
+                      <div className="text-sm font-medium text-gray-800">{u.name || u.email}</div>
+                      <div className="text-xs text-gray-500">{u.email}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="flex-1 overflow-y-auto divide-y divide-gray-100">
+              {conversations.map(c => {
+                const other = (c.participants || []).find(p => p.id !== (user?.id || '')) || { name: 'Conversation' };
+                return (
+                  <div key={c.id} className={`p-3 cursor-pointer hover:bg-gray-50 ${activeConversation?.id === c.id ? 'bg-indigo-50' : ''}`} onClick={() => openConversation(c)}>
+                    <div className="font-medium text-gray-800 text-sm">{other.name}</div>
+                    <div className="text-xs text-gray-400">{c.updatedAt?.toDate ? c.updatedAt.toDate().toLocaleString() : ''}</div>
+                  </div>
+                );
+              })}
+              {conversations.length === 0 && (
+                <div className="p-3 text-sm text-gray-400">No conversations yet</div>
+              )}
+            </div>
+          </div>
+          <div className="col-span-2 border border-gray-100 rounded-lg flex flex-col">
+            <div className="flex-1 overflow-y-auto p-3 space-y-3">
+              {activeConversation ? (
+                dmMessages.map(m => (
+                  <div key={m.id} className={`text-sm ${m.userId === (user?.id) ? 'text-right' : 'text-left'}`}>
+                    <div className="text-xs text-gray-400">{m.userId === (user?.id) ? 'You' : (m.userName || 'User')} · {m.createdAt?.toDate ? m.createdAt.toDate().toLocaleString() : ''}</div>
+                    <div className={`inline-block px-3 py-2 rounded-lg ${m.userId === (user?.id) ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-800'}`}>{m.text}</div>
+                  </div>
+                ))
+              ) : (
+                <div className="h-full flex items-center justify-center text-gray-400">Select a conversation</div>
+              )}
+            </div>
+            <div className="p-3 border-t border-gray-100 flex items-center space-x-2">
+              <input
+                value={dmText}
+                onChange={(e) => setDmText(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') sendDM(); }}
+                placeholder={activeConversation ? 'Type a message' : 'Select a conversation'}
+                disabled={!activeConversation}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+              />
+              <button onClick={sendDM} disabled={!activeConversation || !dmText.trim()} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50">Send</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   const LoginPage = () => (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
@@ -859,6 +1061,14 @@ const ARMSPlatform = () => {
           <Upload size={16} />
           <span>Upload</span>
         </button>
+        <button
+          onClick={() => { setIsInboxOpen(false); setShowGlobalChat(true); }}
+          className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-2"
+          title="Chat"
+        >
+          <MessageCircle size={16} />
+          <span>Chat</span>
+        </button>
         
         <div 
           className="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-white font-semibold cursor-pointer hover:bg-indigo-700 transition-colors"
@@ -1104,15 +1314,25 @@ const ARMSPlatform = () => {
                     <span className="text-xs text-gray-400">
                       {(() => { const d = material.uploadedAt || material.createdAt; return d ? new Date(d).toLocaleDateString() : 'Unknown date'; })()}
                     </span>
-                    <a 
-                      href={getFileUrl(material.path)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-indigo-600 hover:text-indigo-700 text-sm flex items-center space-x-1"
-                    >
-                      <Download size={14} />
-                      <span>Download</span>
-                    </a>
+                    <div className="flex items-center space-x-3">
+                      <button
+                        onClick={() => handleToggleLike(material.id)}
+                        className={`text-sm flex items-center space-x-1 px-2 py-1 rounded ${likedMap[material.id] ? 'text-indigo-700 bg-indigo-50' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
+                        title="Like"
+                      >
+                        <ThumbsUp size={14} />
+                        <span>{likesCountMap[material.id] || 0}</span>
+                      </button>
+                      <a 
+                        href={getFileUrl(material.path)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-indigo-600 hover:text-indigo-700 text-sm flex items-center space-x-1"
+                      >
+                        <Download size={14} />
+                        <span>Download</span>
+                      </a>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -1148,6 +1368,14 @@ const ARMSPlatform = () => {
                 <option value="DOC">Document</option>
                 <option value="OTHER">Other</option>
               </select>
+              <button
+                onClick={() => setShowCourseChat(true)}
+                className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-2"
+                title="Open course chat"
+              >
+                <MessageCircle size={16} />
+                <span>Course Chat</span>
+              </button>
             </div>
           </div>
         </div>
@@ -1206,11 +1434,22 @@ const ARMSPlatform = () => {
                       </div>
                     </div>
                     <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => handleToggleLike(material.id)}
+                        className={`p-2 rounded-lg transition-colors ${likedMap[material.id] ? 'text-indigo-700 bg-indigo-50' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
+                        title="Like"
+                      >
+                        <div className="flex items-center space-x-1">
+                          <ThumbsUp size={16} />
+                          <span className="text-sm">{likesCountMap[material.id] || 0}</span>
+                        </div>
+                      </button>
                       <a 
                         href={getFileUrl(material.path)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-indigo-600 hover:text-indigo-700 p-2 rounded-lg hover:bg-indigo-50 transition-colors"
+                        title="Download"
                       >
                         <Download size={16} />
                       </a>
@@ -1828,6 +2067,8 @@ const ARMSPlatform = () => {
       {showUploadModal && UploadModalEl}
       {showFilterModal && FilterModalEl}
       {showCreateNews && <CreateNewsModal />}
+      {showCourseChat && CourseChatEl}
+      {showGlobalChat && GlobalChatEl}
       <NotificationSidebar 
         isOpen={isInboxOpen}
         onClose={() => setIsInboxOpen(false)}

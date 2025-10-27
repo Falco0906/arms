@@ -4,8 +4,9 @@ import { courseService as fbCourseSvc } from './firebase/courses';
 import { materialService as fbMaterialSvc } from './firebase/materials';
 import { newsService as fbNewsSvc } from './firebase/news';
 import { userService as fbUserSvc } from './firebase/users';
+import { chatService as fbChatSvc } from './firebase/chat';
 
-const USE_FIREBASE = String(process.env.REACT_APP_USE_FIREBASE ?? 'true').toLowerCase() === 'true';
+const USE_FIREBASE = String(process.env.REACT_APP_USE_FIREBASE || '').toLowerCase() === 'true';
 
 // Create axios instance with default configuration
 const api = axios.create({
@@ -106,6 +107,9 @@ export const materialAPI = {
   },
   getMaterialsByCourse: async (courseId) => USE_FIREBASE ? { data: await fbMaterialSvc.getMaterialsByCourse(courseId) } : api.get(`/courses/${courseId}/materials`),
   deleteMaterial: async (id) => USE_FIREBASE ? { data: await fbMaterialSvc.deleteMaterial(id) } : api.delete(`/materials/${id}`),
+  isLikedByUser: async (materialId, userId) => USE_FIREBASE ? { data: await fbMaterialSvc.isLikedByUser(materialId, userId) } : { data: false },
+  getLikesCount: async (materialId) => USE_FIREBASE ? { data: await fbMaterialSvc.getLikesCount(materialId) } : { data: 0 },
+  toggleLike: async (materialId, user) => USE_FIREBASE ? { data: await fbMaterialSvc.toggleLike(materialId, user) } : { data: { liked: false } },
 };
 
 // Rankings API
@@ -147,6 +151,16 @@ export const searchAPI = {
     // TODO: implement backend aggregated search if needed
     return { data: [] };
   }
+};
+
+// Chat API
+export const chatAPI = {
+  subscribeToCourseMessages: (courseId, cb) => fbChatSvc.subscribeToCourseMessages(courseId, cb),
+  sendCourseMessage: async (courseId, payload) => fbChatSvc.sendCourseMessage(courseId, payload),
+  getOrCreateDMConversation: async (currentUser, otherUser) => fbChatSvc.getOrCreateDMConversation(currentUser, otherUser),
+  subscribeToUserConversations: (userId, cb) => fbChatSvc.subscribeToUserConversations(userId, cb),
+  subscribeToDM: (conversationId, cb) => fbChatSvc.subscribeToDM(conversationId, cb),
+  sendDM: async (conversationId, payload) => fbChatSvc.sendDM(conversationId, payload),
 };
 
 // File serving - direct access to uploaded files

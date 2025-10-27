@@ -119,7 +119,14 @@ export const authService = {
 
   getUser() {
     const userStr = localStorage.getItem('user');
-    return userStr ? JSON.parse(userStr) : null;
+    if (!userStr) return null;
+    try {
+      return JSON.parse(userStr);
+    } catch (e) {
+      try { localStorage.removeItem('user'); } catch (_) {}
+      try { localStorage.removeItem('authToken'); } catch (_) {}
+      return null;
+    }
   },
 
   isAuthenticated() {

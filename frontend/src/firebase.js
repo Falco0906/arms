@@ -13,17 +13,23 @@ const firebaseConfig = {
   appId: process.env.REACT_APP_FIREBASE_APP_ID,
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+// Initialize Firebase safely (do not crash if env vars are missing)
+let app = null;
+try {
+  // Basic sanity: require at least apiKey and projectId
+  if (firebaseConfig.apiKey && firebaseConfig.projectId) {
+    app = initializeApp(firebaseConfig);
+  } else {
+    // Attempt initialization anyway; if it fails, we'll catch below
+    app = initializeApp(firebaseConfig);
+  }
+} catch (e) {
+  console.warn('Firebase initialization skipped or failed. Set REACT_APP_FIREBASE_* env vars to enable.', e?.message || e);
+}
 
-// Get Auth instance
-export const auth = getAuth(app);
-
-// Get Firestore instance
-export const db = getFirestore(app);
-
-// Get Storage instance
-export const storage = getStorage(app);
+export const auth = app ? getAuth(app) : null;
+export const db = app ? getFirestore(app) : null;
+export const storage = app ? getStorage(app) : null;
 
 export default app;
 

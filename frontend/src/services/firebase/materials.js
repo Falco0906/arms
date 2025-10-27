@@ -1,5 +1,5 @@
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { collection, doc, addDoc, getDoc, getDocs, query, where, orderBy, limit as fbLimit, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, addDoc, getDoc, getDocs, setDoc, query, where, orderBy, limit as fbLimit, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { storage, db } from '../../firebase';
 
 export const materialService = {
@@ -78,5 +78,24 @@ export const materialService = {
     const materialDoc = await getDoc(materialRef);
     if (!materialDoc.exists()) throw new Error('Material not found');
     await updateDoc(materialRef, { downloads: (materialDoc.data().downloads || 0) + 1 });
+  },
+  isLikedByUser: async (materialId, userId) => {
+    const likeDoc = await getDoc(doc(db, 'materials', materialId, 'likes', userId));
+    return likeDoc.exists();
+  },
+  getLikesCount: async (materialId) => {
+    const snap = await getDocs(collection(db, 'materials', materialId, 'likes'));
+    return snap.size;
+  },
+  toggleLike: async (materialId, user) => {
+    const likeRef = doc(db, 'materials', materialId, 'likes', user.id);
+    const exists = (await getDoc(likeRef)).exists();
+    if (exists) {
+      await deleteDoc(likeRef);
+      return { liked: false };
+    } else {
+      await setDoc(likeRef, { userId: user.id, userName: user.name || user.email || '', createdAt: serverTimestamp() });
+      return { liked: true };
+    }
   }
 };
