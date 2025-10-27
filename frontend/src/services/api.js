@@ -6,7 +6,7 @@ import { newsService as fbNewsSvc } from './firebase/news';
 import { userService as fbUserSvc } from './firebase/users';
 import { chatService as fbChatSvc } from './firebase/chat';
 
-const USE_FIREBASE = String(process.env.REACT_APP_USE_FIREBASE ?? 'true').toLowerCase() === 'true';
+const USE_FIREBASE = String(process.env.REACT_APP_USE_FIREBASE || '').toLowerCase() === 'true';
 
 // Create axios instance with default configuration
 const api = axios.create({
@@ -134,9 +134,16 @@ export const materialAPI = {
   deleteMaterial: async (id) => USE_FIREBASE ? { data: await fbMaterialSvc.deleteMaterial(id) } : api.delete(`/materials/${id}`),
   isLikedByUser: async (materialId, userId) => USE_FIREBASE ? { data: await fbMaterialSvc.isLikedByUser(materialId, userId) } : { data: false },
   getLikesCount: async (materialId) => USE_FIREBASE ? { data: await fbMaterialSvc.getLikesCount(materialId) } : { data: 0 },
-  toggleLike: async (materialId, user) => USE_FIREBASE ? { data: await fbMaterialSvc.toggleLike(materialId, user) } : { data: { liked: false } },
+  toggleLike: async (materialId, user) => {
+    if (USE_FIREBASE) return { data: await fbMaterialSvc.toggleLike(materialId, user) };
+    throw new Error('toggleLike not available offline');
+  },
+  getTopDownloads: async (limit = 6) => USE_FIREBASE ? { data: await fbMaterialSvc.getTopDownloads(limit) } : { data: [] },
   // Comments
-  subscribeToComments: (materialId, cb) => fbMaterialSvc.subscribeToComments(materialId, cb),
+  subscribeToComments: (materialId, cb) => {
+    if (!USE_FIREBASE) return () => {};
+    return fbMaterialSvc.subscribeToComments(materialId, cb);
+  },
   addComment: async (materialId, payload) => USE_FIREBASE ? { data: await fbMaterialSvc.addComment(materialId, payload) } : { data: null },
   deleteComment: async (materialId, commentId) => USE_FIREBASE ? { data: await fbMaterialSvc.deleteComment(materialId, commentId) } : { data: null },
   getCommentsCount: async (materialId) => USE_FIREBASE ? { data: await fbMaterialSvc.getCommentsCount(materialId) } : { data: 0 },
@@ -150,8 +157,17 @@ export const rankingsAPI = {
 // News API
 export const newsAPI = {
   getAllNews: async (page = 0, size = 10, search = null, type = null) => USE_FIREBASE ? { data: await fbNewsSvc.getAllNews(page, size, search, type) } : (() => { const params = new URLSearchParams({ page, size }); if (search) params.append('search', search); if (type) params.append('type', type); return api.get(`/news?${params.toString()}`); })(),
-  getRecentNews: async (limit = 5) => USE_FIREBASE ? { data: await fbNewsSvc.getRecentNews(limit) } : api.get(`/news/recent?limit=${limit}`),
+  getRecentNews: async (limit = 5) => USE_FIREBASE ? { data: await fbNewsSvc.getRecentNews(limit) } : api.get(`/news?limit=${limit}`),
   createNews: async (newsData) => USE_FIREBASE ? { data: await fbNewsSvc.createNews(newsData) } : api.post('/news', newsData),
+  getUpcomingEvents: async (limit = 6) => {
+    if (USE_FIREBASE) {
+      const all = await fbNewsSvc.getAllNews(0, limit * 2, null, 'EVENT');
+      const now = Date.now();
+      return { data: (all || []).filter(e => e.type === 'EVENT' && new Date(e.date || e.createdAt) >= now).slice(0, limit) };
+    }
+    // Backend not implemented; return empty array
+    return { data: [] };
+  },
   updateNews: async (id, newsData) => USE_FIREBASE ? { data: await fbNewsSvc.updateNews?.(id, newsData) } : api.put(`/news/${id}`, newsData),
   deleteNews: async (id) => USE_FIREBASE ? { data: await fbNewsSvc.deleteNews?.(id) } : api.delete(`/news/${id}`),
 };
@@ -185,16 +201,36 @@ export const searchAPI = {
 
 // Chat API
 export const chatAPI = {
-  subscribeToCourseMessages: (courseId, cb) => fbChatSvc.subscribeToCourseMessages(courseId, cb),
-  sendCourseMessage: async (courseId, payload) => fbChatSvc.sendCourseMessage(courseId, payload),
-  getOrCreateDMConversation: async (currentUser, otherUser) => fbChatSvc.getOrCreateDMConversation(currentUser, otherUser),
-  subscribeToUserConversations: (userId, cb) => fbChatSvc.subscribeToUserConversations(userId, cb),
-  subscribeToDM: (conversationId, cb) => fbChatSvc.subscribeToDM(conversationId, cb),
-  sendDM: async (conversationId, payload) => fbChatSvc.sendDM(conversationId, payload),
+  subscribeToCourseMessages: (courseId, cb) => {
+    if (!USE_FIREBASE) return () => {};
+    return fbChatSvc.subscribeToCourseMessages(courseId, cb);
+  },
+  sendCourseMessage: async (courseId, payload) => {
+    if (!USE_FIREBASE) return { data: null };
+    return fbChatSvc.sendCourseMessage(courseId, payload);
+  },
+  getOrCreateDMConversation: async (currentUser, otherUser) => {
+    if (!USE_FIREBASE) return { id: `local-${currentUser.id}-${otherUser.id}`, participants: [currentUser, otherUser] };
+    return fbChatSvc.getOrCreateDMConversation(currentUser, otherUser);
+  },
+  subscribeToUserConversations: (userId, cb) => {
+    if (!USE_FIREBASE) return () => {};
+    return fbChatSvc.subscribeToUserConversations(userId, cb);
+  },
+  subscribeToDM: (conversationId, cb) => {
+    if (!USE_FIREBASE) return () => {};
+    return fbChatSvc.subscribeToDM(conversationId, cb);
+  },
+  sendDM: async (conversationId, payload) => {
+    if (!USE_FIREBASE) return { data: null };
+    return fbChatSvc.sendDM(conversationId, payload);
+  },
 };
 
 // File serving - direct access to uploaded files
 export const getFileUrl = (path) => {
+  // If already an absolute URL, return as-is
+  if (typeof path === 'string' && (/^https?:\/\//i).test(path)) return path;
   if (USE_FIREBASE) {
     // In Firebase path, URLs are returned with material items; just return path for now
     return path;

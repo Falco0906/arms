@@ -22,13 +22,16 @@ import {
   CheckCircle,
   Trash2,
   ThumbsUp,
-  MessageCircle
+  MessageCircle,
+  Sun,
+  Moon
 } from 'lucide-react';
 import HomePage from './components/HomePage';
 import NotificationSidebar from './components/common/NotificationSidebar';
 import { authService } from './services/authService';
 import { courseAPI, materialAPI, rankingsAPI, newsAPI, userAPI, searchAPI, chatAPI, getFileUrl, handleAPIError } from './services/api';
 import SearchInput from './components/SearchInput';
+import UserProfile from './components/rankings/UserProfile';
 
 
 const ARMSPlatform = () => {
@@ -91,6 +94,9 @@ const ARMSPlatform = () => {
   const [commentInputs, setCommentInputs] = useState({});
   const [commentCounts, setCommentCounts] = useState({});
   const commentUnsubsRef = useRef({});
+  const [darkMode, setDarkMode] = useState(() => {
+    try { return (localStorage.getItem('arms:theme') || 'light') === 'dark'; } catch (_) { return false; }
+  });
 
   const getPinsKey = (userId) => `arms:${userId}:pins`;
   const getRecentsKey = (userId) => `arms:${userId}:recentCourses`;
@@ -125,6 +131,88 @@ const ARMSPlatform = () => {
       setRecentCourseIds([]);
     }
   };
+
+  // Minimal Notes page with per-user local storage
+  const NotesPage = () => {
+    const storageKey = user ? `arms:${user.id}:notes` : 'arms:anon:notes';
+    const [text, setText] = useState(() => localStorage.getItem(storageKey) || '');
+    const [saving, setSaving] = useState(false);
+    useEffect(() => {
+      setSaving(true);
+      const id = setTimeout(() => {
+        try { localStorage.setItem(storageKey, text); } catch (e) {}
+        setSaving(false);
+      }, 400);
+      return () => clearTimeout(id);
+    }, [text, storageKey]);
+    useEffect(() => {
+      setText(localStorage.getItem(storageKey) || '');
+    }, [storageKey]);
+    return (
+      <div className="p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Personal Notes</h1>
+          <span className="text-sm text-gray-500 dark:text-gray-400">{saving ? 'Saving…' : 'Saved'}</span>
+        </div>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          className="w-full h-[60vh] p-4 border border-gray-300 dark:border-neutral-700 rounded-lg focus:ring-2 focus:ring-gray-400 dark:bg-neutral-900 dark:text-gray-100"
+          placeholder="Write anything you want to remember…"
+        />
+      </div>
+    );
+  };
+
+  // Minimal Rankings page using existing state
+  const Rankings = () => (
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Top Contributors</h1>
+      </div>
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-center space-x-2">
+          <AlertCircle className="text-red-500" size={20} />
+          <span className="text-red-700">{error}</span>
+        </div>
+      )}
+      <div className="bg-white dark:bg-neutral-900 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-800">
+        <div className="p-6 border-b border-gray-200 dark:border-neutral-800">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Leaderboard</h2>
+          <p className="text-gray-600 dark:text-gray-400">Based on total uploads and contributions</p>
+        </div>
+        {loading ? (
+          <div className="p-8 text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-500 mx-auto"></div>
+            <p className="text-gray-600 mt-2">Loading rankings...</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-200 dark:divide-gray-700">
+            {rankings.map((u, index) => (
+              <div key={u.userId || index} className="p-6 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors cursor-pointer" onClick={() => handleUserSelect(u, 'rankings')}>
+                <div className="flex items-center space-x-4">
+                  <div className="flex items-center justify-center w-8 h-8 text-gray-400">
+                    {index + 1}
+                  </div>
+                  <div className="w-12 h-12 bg-gray-700 rounded-full flex items-center justify-center text-white font-semibold">
+                    {(u.name || 'U').charAt(0)}
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{u.name}</h3>
+                    <p className="text-gray-600 dark:text-gray-400">{u.uploads} total uploads</p>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{u.uploads}</div>
+                    <div className="text-sm text-gray-500">uploads</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 
   // Check authentication on mount
   useEffect(() => {
@@ -482,6 +570,12 @@ const ARMSPlatform = () => {
     }
   }, []);
 
+  // Apply theme
+  useEffect(() => {
+    try { localStorage.setItem('arms:theme', darkMode ? 'dark' : 'light'); } catch (_) {}
+    document.documentElement.classList.toggle('dark', !!darkMode);
+  }, [darkMode]);
+
   // Debounced user search to prevent too many API calls
   const debouncedGlobalSearch = useCallback((value) => {
     setSearchQuery(value);
@@ -563,62 +657,55 @@ const ARMSPlatform = () => {
       setLikedMap(prev => ({ ...prev, [materialId]: liked }));
       setLikesCountMap(prev => ({ ...prev, [materialId]: Math.max(0, (prev[materialId] || 0) + (liked ? 1 : -1)) }));
     } catch (err) {
-      setError(handleAPIError(err));
+      // Fallback: toggle locally when backend/Firebase is unavailable
+      setLikedMap(prev => {
+        const nextLiked = !prev[materialId];
+        setLikesCountMap(counts => ({ ...counts, [materialId]: Math.max(0, (counts[materialId] || 0) + (nextLiked ? 1 : -1)) }));
+        return { ...prev, [materialId]: nextLiked };
+      });
     }
   };
 
-  // Course chat subscriptions
-  useEffect(() => {
-    if (!showCourseChat || !selectedCourse?.id) return;
-    if (courseChatUnsubRef.current) courseChatUnsubRef.current();
-    courseChatUnsubRef.current = chatAPI.subscribeToCourseMessages(selectedCourse.id, (msgs) => setCourseMessages(msgs));
-    return () => { if (courseChatUnsubRef.current) courseChatUnsubRef.current(); };
-  }, [showCourseChat, selectedCourse?.id]);
-
-  const sendCourseChat = async () => {
-    if (!courseChatText.trim() || !selectedCourse?.id) return;
-    try { await chatAPI.sendCourseMessage(selectedCourse.id, { userId: user.id, userName: user.name, text: courseChatText }); setCourseChatText(''); } catch (err) { setError(handleAPIError(err)); }
-  };
-
-  // Global chat subscriptions
-  useEffect(() => {
-    if (!showGlobalChat || !user?.id) return;
-    if (convUnsubRef.current) convUnsubRef.current();
-    convUnsubRef.current = chatAPI.subscribeToUserConversations(user.id, (convs) => setConversations(convs));
-    return () => { if (convUnsubRef.current) convUnsubRef.current(); };
-  }, [showGlobalChat, user?.id]);
-
-  const openConversation = (conv) => {
-    setActiveConversation(conv);
-    if (dmUnsubRef.current) dmUnsubRef.current();
-    dmUnsubRef.current = chatAPI.subscribeToDM(conv.id, (msgs) => setDmMessages(msgs));
-  };
-
-  const sendDM = async () => {
-    if (!activeConversation?.id || !dmText.trim()) return;
-    try { await chatAPI.sendDM(activeConversation.id, { userId: user.id, userName: user.name, text: dmText }); setDmText(''); } catch (err) { setError(handleAPIError(err)); }
-  };
-
-  const handleChatUserSearch = useCallback((value) => {
-    setChatUserQuery(value);
-    if (chatSearchTimeoutRef.current) clearTimeout(chatSearchTimeoutRef.current);
-    chatSearchTimeoutRef.current = setTimeout(async () => {
-      if (!value.trim()) { setChatUserResults([]); return; }
-      try { const res = await userAPI.searchUsers(value); setChatUserResults(res.data || []); } catch (e) { /* ignore */ }
-    }, 300);
-  }, []);
-
-  const startDMWithUser = useCallback(async (target) => {
-    try {
-      const conv = await chatAPI.getOrCreateDMConversation(user, { id: target.id, name: target.name || target.email || '' });
-      setShowGlobalChat(true);
-      openConversation(conv);
-      setChatUserResults([]);
-      setChatUserQuery('');
-    } catch (err) {
-      setError(handleAPIError(err));
-    }
-  }, [user]);
+  // Seed demo materials for current course (no real storage required)
+  const seedDemoMaterialsForCourse = useCallback(() => {
+    if (!selectedCourse?.id) return;
+    const now = Date.now();
+    const samples = [
+      { title: 'Syllabus Overview', type: 'DOC' },
+      { title: 'Lecture 1 Notes', type: 'NOTES' },
+      { title: 'Assignment 1', type: 'ASSIGNMENT' },
+      { title: 'Lab Code Starter', type: 'CODE' },
+      { title: 'Week 1 Slides', type: 'PPT' },
+      { title: 'Reference Paper', type: 'OTHER' },
+    ];
+    const fileUrl = 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf';
+    const demo = samples.map((s, i) => ({
+      id: `demo-${selectedCourse.id}-${now}-${i}`,
+      courseId: selectedCourse.id,
+      title: s.title,
+      description: '',
+      filename: `${s.title}.pdf`,
+      path: fileUrl,
+      url: fileUrl,
+      type: s.type,
+      size: 512 * 1024,
+      uploader: user ? { id: user.id, name: user.name } : null,
+      uploadedAt: new Date(now - i * 60000).toISOString(),
+    }));
+    setMaterials(prev => {
+      const next = [...demo, ...prev];
+      setFilteredMaterials(next);
+      setLikesCountMap(prevCounts => ({ ...prevCounts, ...Object.fromEntries(demo.map(d => [d.id, 0])) }));
+      setLikedMap(prevLiked => ({ ...prevLiked, ...Object.fromEntries(demo.map(d => [d.id, false])) }));
+      setCommentCounts(prevCounts => ({ ...prevCounts, ...Object.fromEntries(demo.map(d => [d.id, 0])) }));
+      const recent = next
+        .slice()
+        .sort((a, b) => new Date(b.uploadedAt || b.createdAt || 0) - new Date(a.uploadedAt || a.createdAt || 0))
+        .slice(0, 5);
+      setRecentMaterials(recent);
+      return next;
+    });
+  }, [selectedCourse?.id, user]);
 
   // Comments handlers
   const toggleComments = useCallback((materialId) => {
@@ -626,10 +713,15 @@ const ARMSPlatform = () => {
       const next = { ...prev, [materialId]: !prev[materialId] };
       const nowOpen = next[materialId];
       if (nowOpen && !commentUnsubsRef.current[materialId]) {
-        commentUnsubsRef.current[materialId] = materialAPI.subscribeToComments(materialId, (comments) => {
-          setCommentsMap(prevMap => ({ ...prevMap, [materialId]: comments }));
-          setCommentCounts(prevCounts => ({ ...prevCounts, [materialId]: comments.length }));
-        });
+        try {
+          commentUnsubsRef.current[materialId] = materialAPI.subscribeToComments(materialId, (comments) => {
+            setCommentsMap(prevMap => ({ ...prevMap, [materialId]: comments }));
+            setCommentCounts(prevCounts => ({ ...prevCounts, [materialId]: comments.length }));
+          });
+        } catch (_) {
+          // No Firebase/backend available; show empty comments without subscription
+          setCommentsMap(prevMap => ({ ...prevMap, [materialId]: prevMap[materialId] || [] }));
+        }
       } else if (!nowOpen && commentUnsubsRef.current[materialId]) {
         try { commentUnsubsRef.current[materialId](); } catch (_) {}
         delete commentUnsubsRef.current[materialId];
@@ -641,7 +733,6 @@ const ARMSPlatform = () => {
   const handleCommentInputChange = useCallback((materialId, value) => {
     setCommentInputs(prev => ({ ...prev, [materialId]: value }));
   }, []);
-
   const addCommentToMaterial = useCallback(async (materialId) => {
     const text = (commentInputs[materialId] || '').trim();
     if (!text || !user?.id) return;
@@ -649,7 +740,21 @@ const ARMSPlatform = () => {
       await materialAPI.addComment(materialId, { userId: user.id, userName: user.name || user.email || '', text });
       setCommentInputs(prev => ({ ...prev, [materialId]: '' }));
     } catch (err) {
-      setError(handleAPIError(err));
+      // Local demo fallback: append comment client-side only
+      setCommentsMap(prev => {
+        const list = prev[materialId] || [];
+        const demoComment = {
+          id: `local-${Date.now()}`,
+          userId: user.id,
+          userName: user.name || user.email || 'You',
+          text,
+          createdAt: new Date().toISOString(),
+        };
+        const next = { ...prev, [materialId]: [...list, demoComment] };
+        setCommentCounts(cnt => ({ ...cnt, [materialId]: (cnt[materialId] || 0) + 1 }));
+        return next;
+      });
+      setCommentInputs(prev => ({ ...prev, [materialId]: '' }));
     }
   }, [commentInputs, user]);
 
@@ -658,7 +763,14 @@ const ARMSPlatform = () => {
     try {
       await materialAPI.deleteComment(materialId, comment.id);
     } catch (err) {
-      setError(handleAPIError(err));
+      // Local demo fallback: remove from client state
+      setCommentsMap(prev => {
+        const list = prev[materialId] || [];
+        const nextList = list.filter(c => c.id !== comment.id);
+        const next = { ...prev, [materialId]: nextList };
+        setCommentCounts(cnt => ({ ...cnt, [materialId]: Math.max(0, (cnt[materialId] || 0) - 1) }));
+        return next;
+      });
     }
   }, [user]);
 
@@ -674,6 +786,71 @@ const ARMSPlatform = () => {
     };
   }, [selectedCourse?.id]);
 
+  // Course chat subscriptions (always on sidebar)
+  useEffect(() => {
+    if (!selectedCourse?.id) return;
+    if (courseChatUnsubRef.current) { try { courseChatUnsubRef.current(); } catch (_) {} }
+    if (typeof chatAPI.subscribeToCourseMessages === 'function') {
+      courseChatUnsubRef.current = chatAPI.subscribeToCourseMessages(selectedCourse.id, (msgs) => setCourseMessages(msgs));
+    } else {
+      courseChatUnsubRef.current = null;
+    }
+    return () => { if (courseChatUnsubRef.current) { try { courseChatUnsubRef.current(); } catch (_) {} } };
+  }, [selectedCourse?.id]);
+
+  const sendCourseChat = async () => {
+    if (!courseChatText.trim() || !selectedCourse?.id) return;
+    try {
+      await chatAPI.sendCourseMessage(selectedCourse.id, { userId: user?.id, userName: user?.name || user?.email || '', text: courseChatText });
+    } catch (err) {
+      // no-op offline
+    } finally {
+      setCourseChatText('');
+    }
+  };
+
+  // Global chat subscriptions
+  useEffect(() => {
+    if (!showGlobalChat || !user?.id) return;
+    if (convUnsubRef.current) { try { convUnsubRef.current(); } catch (_) {} }
+    if (typeof chatAPI.subscribeToUserConversations === 'function') {
+      convUnsubRef.current = chatAPI.subscribeToUserConversations(user.id, (convs) => setConversations(convs));
+    } else {
+      convUnsubRef.current = null;
+    }
+    return () => { if (convUnsubRef.current) { try { convUnsubRef.current(); } catch (_) {} } };
+  }, [showGlobalChat, user?.id]);
+
+  const openConversation = (conv) => {
+    setActiveConversation(conv);
+    if (dmUnsubRef.current) { try { dmUnsubRef.current(); } catch (_) {} }
+    if (typeof chatAPI.subscribeToDM === 'function') {
+      dmUnsubRef.current = chatAPI.subscribeToDM(conv.id, (msgs) => setDmMessages(msgs));
+    } else {
+      dmUnsubRef.current = null;
+    }
+  };
+
+  const sendDM = async () => {
+    if (!activeConversation?.id || !dmText.trim()) return;
+    try {
+      await chatAPI.sendDM(activeConversation.id, { userId: user?.id, userName: user?.name || user?.email || '', text: dmText });
+    } catch (err) {
+      // no-op offline
+    } finally {
+      setDmText('');
+    }
+  };
+
+  const handleChatUserSearch = useCallback((value) => {
+    setChatUserQuery(value);
+    if (chatSearchTimeoutRef.current) clearTimeout(chatSearchTimeoutRef.current);
+    chatSearchTimeoutRef.current = setTimeout(async () => {
+      if (!value.trim()) { setChatUserResults([]); return; }
+      try { const res = await userAPI.searchUsers(value); setChatUserResults(res.data || []); } catch (_) { setChatUserResults([]); }
+    }, 300);
+  }, []);
+
   // Overlays defined after handlers to avoid temporal dead zone
   const CourseChatEl = (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -686,7 +863,7 @@ const ARMSPlatform = () => {
         </div>
         <div className="flex-1 overflow-y-auto space-y-3 border border-gray-100 rounded-lg p-3">
           {courseMessages.map(m => (
-            <div key={m.id} className="text-sm">
+            <div key={m.id || Math.random()} className="text-sm">
               <div className="flex items-baseline space-x-2">
                 <span className="font-medium text-gray-800">{m.userId === (user?.id) ? 'You' : (m.userName || 'User')}</span>
                 <span className="text-xs text-gray-400">{m.createdAt?.toDate ? m.createdAt.toDate().toLocaleString() : (m.createdAt ? new Date(m.createdAt).toLocaleString() : '')}</span>
@@ -704,9 +881,9 @@ const ARMSPlatform = () => {
             onChange={(e) => setCourseChatText(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') sendCourseChat(); }}
             placeholder="Type a message"
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+            className="flex-1 px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg focus:ring-2 focus:ring-gray-400 dark:bg-neutral-900 dark:text-gray-100"
           />
-          <button onClick={sendCourseChat} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Send</button>
+          <button onClick={sendCourseChat} className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 disabled:opacity-50">Send</button>
         </div>
       </div>
     </div>
@@ -714,16 +891,16 @@ const ARMSPlatform = () => {
 
   const GlobalChatEl = (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl w-full max-w-4xl p-6 h-[80vh] flex flex-col">
+      <div className="bg-white dark:bg-neutral-900 rounded-xl w-full max-w-4xl p-6 h-[80vh] flex flex-col">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-900">Messages</h2>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Messages</h2>
           <button onClick={() => { if (convUnsubRef.current) convUnsubRef.current(); if (dmUnsubRef.current) dmUnsubRef.current(); setShowGlobalChat(false); setActiveConversation(null); }}>
             <X className="text-gray-400 hover:text-gray-600" size={24} />
           </button>
         </div>
         <div className="grid grid-cols-3 gap-4 flex-1 min-h-0">
-          <div className="col-span-1 border border-gray-100 rounded-lg flex flex-col">
-            <div className="p-3 border-b border-gray-100">
+          <div className="col-span-1 border border-gray-100 dark:border-neutral-800 rounded-lg flex flex-col">
+            <div className="p-3 border-b border-gray-100 dark:border-neutral-800">
               <SearchInput
                 className="w-full"
                 placeholder="Search users to chat..."
@@ -731,23 +908,23 @@ const ARMSPlatform = () => {
                 onChange={handleChatUserSearch}
               />
               {chatUserResults.length > 0 && (
-                <div className="mt-2 max-h-40 overflow-y-auto border border-gray-100 rounded-lg">
+                <div className="mt-2 max-h-40 overflow-y-auto border border-gray-100 dark:border-neutral-800 rounded-lg">
                   {chatUserResults.map(u => (
-                    <div key={u.id} className="p-2 cursor-pointer hover:bg-gray-50" onClick={() => startDMWithUser(u)}>
-                      <div className="text-sm font-medium text-gray-800">{u.name || u.email}</div>
-                      <div className="text-xs text-gray-500">{u.email}</div>
+                    <div key={u.id} className="p-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800" onClick={() => startDMWithUser(u)}>
+                      <div className="text-sm font-medium text-gray-800 dark:text-gray-200">{u.name || u.email}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">{u.email}</div>
                     </div>
                   ))}
                 </div>
               )}
             </div>
-            <div className="flex-1 overflow-y-auto divide-y divide-gray-100">
+            <div className="flex-1 overflow-y-auto divide-y divide-gray-100 dark:divide-neutral-800">
               {conversations.map(c => {
                 const other = (c.participants || []).find(p => p.id !== (user?.id || '')) || { name: 'Conversation' };
                 return (
-                  <div key={c.id} className={`p-3 cursor-pointer hover:bg-gray-50 ${activeConversation?.id === c.id ? 'bg-indigo-50' : ''}`} onClick={() => openConversation(c)}>
-                    <div className="font-medium text-gray-800 text-sm">{other.name}</div>
-                    <div className="text-xs text-gray-400">{c.updatedAt?.toDate ? c.updatedAt.toDate().toLocaleString() : ''}</div>
+                  <div key={c.id} className={`p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800 ${activeConversation?.id === c.id ? 'bg-gray-100 dark:bg-neutral-800' : ''}`} onClick={() => openConversation(c)}>
+                    <div className="font-medium text-gray-800 dark:text-gray-200 text-sm">{other.name}</div>
+                    <div className="text-xs text-gray-400 dark:text-gray-500">{c.updatedAt?.toDate ? c.updatedAt.toDate().toLocaleString() : ''}</div>
                   </div>
                 );
               })}
@@ -756,29 +933,29 @@ const ARMSPlatform = () => {
               )}
             </div>
           </div>
-          <div className="col-span-2 border border-gray-100 rounded-lg flex flex-col">
+          <div className="col-span-2 border border-gray-100 dark:border-neutral-800 rounded-lg flex flex-col">
             <div className="flex-1 overflow-y-auto p-3 space-y-3">
               {activeConversation ? (
                 dmMessages.map(m => (
                   <div key={m.id} className={`text-sm ${m.userId === (user?.id) ? 'text-right' : 'text-left'}`}>
-                    <div className="text-xs text-gray-400">{m.userId === (user?.id) ? 'You' : (m.userName || 'User')} · {m.createdAt?.toDate ? m.createdAt.toDate().toLocaleString() : ''}</div>
-                    <div className={`inline-block px-3 py-2 rounded-lg ${m.userId === (user?.id) ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-800'}`}>{m.text}</div>
+                    <div className="text-xs text-gray-400 dark:text-gray-500">{m.userId === (user?.id) ? 'You' : (m.userName || 'User')} · {m.createdAt?.toDate ? m.createdAt.toDate().toLocaleString() : ''}</div>
+                    <div className={`inline-block px-3 py-2 rounded-lg ${m.userId === (user?.id) ? 'bg-neutral-700 text-white' : 'bg-gray-100 dark:bg-neutral-700 text-gray-800 dark:text-gray-200'}`}>{m.text}</div>
                   </div>
                 ))
               ) : (
-                <div className="h-full flex items-center justify-center text-gray-400">Select a conversation</div>
+                <div className="h-full flex items-center justify-center text-gray-400 dark:text-gray-500">Select a conversation</div>
               )}
             </div>
-            <div className="p-3 border-t border-gray-100 flex items-center space-x-2">
+            <div className="p-3 border-t border-gray-100 dark:border-neutral-800 flex items-center space-x-2">
               <input
                 value={dmText}
                 onChange={(e) => setDmText(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') sendDM(); }}
                 placeholder={activeConversation ? 'Type a message' : 'Select a conversation'}
                 disabled={!activeConversation}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                className="flex-1 px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg focus:ring-2 focus:ring-gray-400 dark:bg-neutral-900 dark:text-gray-100"
               />
-              <button onClick={sendDM} disabled={!activeConversation || !dmText.trim()} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50">Send</button>
+              <button onClick={sendDM} disabled={!activeConversation || !dmText.trim()} className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 disabled:opacity-50">Send</button>
             </div>
           </div>
         </div>
@@ -787,10 +964,10 @@ const ARMSPlatform = () => {
   );
 
   const LoginPage = () => (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gray-50 dark:bg-neutral-950 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="text-4xl font-bold text-indigo-600 mb-2">ARMS</div>
+          <div className="text-4xl font-bold text-gray-900 mb-2">ARMS</div>
           <p className="text-gray-600">Academic Resource Management System</p>
         </div>
         
@@ -807,7 +984,7 @@ const ARMSPlatform = () => {
             <input 
               type="email" 
               id="login-email"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" 
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent" 
               placeholder="your.email@university.edu" 
             />
           </div>
@@ -816,7 +993,7 @@ const ARMSPlatform = () => {
             <input 
               type="password" 
               id="login-password"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" 
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent" 
             />
           </div>
           <button 
@@ -833,7 +1010,7 @@ const ARMSPlatform = () => {
               handleLogin(email, password);
             }}
             disabled={loading}
-            className="w-full bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
+            className="w-full bg-gray-700 text-white py-2 px-4 rounded-lg hover:bg-gray-600 transition-colors disabled:opacity-50"
           >
             {loading ? 'Signing In...' : 'Sign In'}
           </button>
@@ -843,9 +1020,9 @@ const ARMSPlatform = () => {
             <div className="flex-grow border-t border-gray-200"></div>
           </div>
           <div id="google-signin-container" className="flex justify-center"></div>
-          <p className="text-center text-sm text-gray-600">
+          <p className="text-center text-sm text-gray-600 dark:text-gray-300">
             Don't have an account? <span 
-              className="text-indigo-600 cursor-pointer hover:underline"
+              className="text-gray-700 dark:text-gray-300 cursor-pointer hover:underline"
               onClick={() => setShowRegister(true)}
             >Register here</span>
           </p>
@@ -855,11 +1032,11 @@ const ARMSPlatform = () => {
   );
 
   const RegisterPage = () => (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
+    <div className="min-h-screen bg-gray-50 dark:bg-neutral-950 flex items-center justify-center p-4">
+      <div className="bg-white dark:bg-neutral-900 dark:border dark:border-neutral-800 rounded-2xl shadow-xl p-8 w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="text-4xl font-bold text-indigo-600 mb-2">ARMS</div>
-          <p className="text-gray-600">Create your account</p>
+          <div className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-2">ARMS</div>
+          <p className="text-gray-600 dark:text-gray-300">Create your account</p>
         </div>
         
         {error && (
@@ -875,7 +1052,7 @@ const ARMSPlatform = () => {
             <input 
               type="text" 
               id="register-name"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" 
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent" 
               placeholder="John Doe" 
             />
           </div>
@@ -884,7 +1061,7 @@ const ARMSPlatform = () => {
             <input 
               type="email" 
               id="register-email"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" 
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent" 
               placeholder="your.email@university.edu" 
             />
           </div>
@@ -893,7 +1070,7 @@ const ARMSPlatform = () => {
             <input 
               type="password" 
               id="register-password"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" 
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent" 
             />
           </div>
           <button 
@@ -911,13 +1088,13 @@ const ARMSPlatform = () => {
               handleRegister({ name, email, password });
             }}
             disabled={loading}
-            className="w-full bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
+            className="w-full bg-gray-700 text-white py-2 px-4 rounded-lg hover:bg-gray-600 transition-colors disabled:opacity-50"
           >
             {loading ? 'Creating Account...' : 'Create Account'}
           </button>
-          <p className="text-center text-sm text-gray-600">
+          <p className="text-center text-sm text-gray-600 dark:text-gray-300">
             Already have an account? <span 
-              className="text-indigo-600 cursor-pointer hover:underline"
+              className="text-gray-700 dark:text-gray-300 cursor-pointer hover:underline"
               onClick={() => setShowRegister(false)}
             >Sign in here</span>
           </p>
@@ -927,23 +1104,23 @@ const ARMSPlatform = () => {
   );
 
   const Sidebar = () => (
-    <div className="w-64 bg-white border-r border-gray-200 h-full min-h-0 flex flex-col relative z-20">
-      <div className="p-6 border-b border-gray-200">
-        <div className="text-2xl font-bold text-indigo-600">ARMS</div>
+    <div className="w-64 bg-white dark:bg-neutral-900 border-r border-gray-200 dark:border-neutral-800 h-full min-h-0 flex flex-col relative z-20">
+      <div className="p-6 border-b border-gray-200 dark:border-neutral-800">
+        <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">ARMS</div>
         <p className="text-sm text-gray-600 mt-1">Welcome back, {user?.name}</p>
       </div>
       
       <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
         <button 
           onClick={() => { setIsInboxOpen(false); setCurrentPage('home'); }}
-          className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${currentPage === 'home' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-700 hover:bg-gray-100'}`}
+          className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${currentPage === 'home' ? 'bg-gray-100 dark:bg-neutral-800 text-gray-900 dark:text-gray-100' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800'}`}
         >
           <Home size={20} />
           <span>Home</span>
         </button>
         <button 
           onClick={() => { setIsInboxOpen(false); setCurrentPage('dashboard'); }}
-          className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${currentPage === 'dashboard' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-700 hover:bg-gray-100'}`}
+          className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${currentPage === 'dashboard' ? 'bg-gray-100 dark:bg-neutral-800 text-gray-900 dark:text-gray-100' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800'}`}
         >
           <BookOpen size={20} />
           <span>Dashboard</span>
@@ -956,7 +1133,7 @@ const ARMSPlatform = () => {
               return next;
             });
           }}
-          className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors ${currentPage === 'inbox' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-700 hover:bg-gray-100'}`}
+          className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors ${currentPage === 'inbox' ? 'bg-gray-100 dark:bg-neutral-800 text-gray-900 dark:text-gray-100' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800'}`}
         >
           <span className="flex items-center space-x-3">
             <Inbox size={20} />
@@ -970,7 +1147,7 @@ const ARMSPlatform = () => {
         </button>
         <button 
           onClick={() => { setIsInboxOpen(false); setCurrentPage('rankings'); }}
-          className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${currentPage === 'rankings' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-700 hover:bg-gray-100'}`}
+          className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${currentPage === 'rankings' ? 'bg-gray-100 dark:bg-neutral-800 text-gray-900 dark:text-gray-100' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800'}`}
         >
           <Trophy size={20} />
           <span>Rankings</span>
@@ -978,7 +1155,7 @@ const ARMSPlatform = () => {
 
         <button 
           onClick={() => { setIsInboxOpen(false); setCurrentPage('notes'); }}
-          className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${currentPage === 'notes' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-700 hover:bg-gray-100'}`}
+          className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${currentPage === 'notes' ? 'bg-gray-100 dark:bg-neutral-800 text-gray-900 dark:text-gray-100' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800'}`}
         >
           <FileText size={20} />
           <span>Personal Notes</span>
@@ -1074,7 +1251,7 @@ const ARMSPlatform = () => {
   );
 
   const HeaderEl = (
-    <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+    <div className="bg-white dark:bg-neutral-900 border-b border-gray-200 dark:border-neutral-800 px-6 py-4 flex items-center justify-between">
       <div className="flex items-center space-x-4">
         <div className="search-dropdown relative">
           <SearchInput
@@ -1084,34 +1261,34 @@ const ARMSPlatform = () => {
             onChange={debouncedGlobalSearch}
           />
           {searchResults.length > 0 && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-64 overflow-y-auto">
+            <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-lg shadow-lg z-50 max-h-64 overflow-y-auto">
               {searchResults.map(item => (
                 <div
                   key={`${item.type}-${item.id}`}
-                  className="p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                  className="p-3 hover:bg-gray-50 dark:hover:bg-neutral-800 cursor-pointer border-b border-gray-100 dark:border-neutral-800 last:border-b-0"
                   onClick={() => handleGlobalSearchSelect(item)}
                 >
                   <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-white font-semibold text-xs uppercase">
+                    <div className="w-8 h-8 bg-gray-700 rounded-full flex items-center justify-center text-white font-semibold text-xs uppercase">
                       {item.type === 'user' ? (item.name || item.email || '?').charAt(0) : item.type.charAt(0)}
                     </div>
                     <div className="min-w-0">
                       {item.type === 'user' && (
                         <>
-                          <p className="font-medium text-gray-900 truncate">{item.name || item.email}</p>
-                          <p className="text-sm text-gray-500 truncate">{item.email}</p>
+                          <p className="font-medium text-gray-900 dark:text-gray-100 truncate">{item.name || item.email}</p>
+                          <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{item.email}</p>
                         </>
                       )}
                       {item.type === 'course' && (
                         <>
-                          <p className="font-medium text-gray-900 truncate">{item.code}</p>
-                          <p className="text-sm text-gray-500 truncate">{item.title}</p>
+                          <p className="font-medium text-gray-900 dark:text-gray-100 truncate">{item.code}</p>
+                          <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{item.title}</p>
                         </>
                       )}
                       {item.type === 'material' && (
                         <>
-                          <p className="font-medium text-gray-900 truncate">{item.title}</p>
-                          <p className="text-sm text-gray-500 truncate">Material</p>
+                          <p className="font-medium text-gray-900 dark:text-gray-100 truncate">{item.title}</p>
+                          <p className="text-sm text-gray-500 dark:text-gray-400 truncate">Material</p>
                         </>
                       )}
                     </div>
@@ -1122,11 +1299,18 @@ const ARMSPlatform = () => {
           )}
         </div>
       </div>
-      
       <div className="flex items-center space-x-4">
         <button 
+          onClick={() => setDarkMode(v => !v)}
+          className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-2"
+          title="Toggle theme"
+        >
+          {darkMode ? <Sun size={16} /> : <Moon size={16} />}
+          <span className="hidden sm:inline">{darkMode ? 'Light' : 'Dark'}</span>
+        </button>
+        <button 
           onClick={() => { setIsInboxOpen(false); setShowUploadModal(true); }}
-          className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors flex items-center space-x-2"
+          className="bg-gray-700 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors flex items-center space-x-2"
         >
           <Upload size={16} />
           <span>Upload</span>
@@ -1141,7 +1325,7 @@ const ARMSPlatform = () => {
         </button>
         
         <div 
-          className="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-white font-semibold cursor-pointer hover:bg-indigo-700 transition-colors"
+          className="w-8 h-8 bg-gray-800 rounded-full flex items-center justify-center text-white font-semibold cursor-pointer hover:bg-gray-700 transition-colors"
           onClick={async () => {
             setIsInboxOpen(false);
             console.log('User object when clicking profile:', user);
@@ -1212,7 +1396,7 @@ const ARMSPlatform = () => {
         )}
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+      <div className="bg-white dark:bg-neutral-900 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-800">
         {notificationList.length === 0 ? (
           <div className="p-12 text-center text-gray-500">
             You're all caught up
@@ -1220,12 +1404,12 @@ const ARMSPlatform = () => {
         ) : (
           <div className="divide-y divide-gray-200">
             {notificationList.map(item => (
-              <div key={item.id} className="p-4 hover:bg-gray-50">
+              <div key={item.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-800">
                 <div className="flex items-start space-x-3">
-                  <div className="w-2 h-2 bg-indigo-600 rounded-full mt-2"></div>
+                  <div className="w-2 h-2 bg-gray-400 rounded-full mt-2"></div>
                   <div className="flex-1">
-                    <p className="text-sm text-gray-900">{item.message}</p>
-                    <p className="text-xs text-gray-500 mt-1">{item.timestamp.toLocaleString()}</p>
+                    <p className="text-sm text-gray-900 dark:text-gray-100">{item.message}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{item.timestamp.toLocaleString()}</p>
                   </div>
                 </div>
               </div>
@@ -1270,7 +1454,7 @@ const ARMSPlatform = () => {
         
         {loading ? (
           <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-500 mx-auto"></div>
             <p className="text-gray-600 mt-4">Loading courses...</p>
           </div>
         ) : (
@@ -1278,24 +1462,24 @@ const ARMSPlatform = () => {
             {filteredCourses.map(course => (
               <div 
                 key={course.id} 
-                className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer"
+                className="bg-white dark:bg-neutral-900 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-800 hover:shadow-md transition-shadow cursor-pointer"
                 onClick={() => handleCourseSelect(course)}
               >
                 <div className="p-6">
                   <div className="flex items-center justify-between mb-4">
-                    <div className="w-12 h-12 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold text-lg">
+                    <div className="w-12 h-12 bg-gray-700 rounded-lg flex items-center justify-center text-white font-bold text-lg">
                       {course.code.substring(0, 2)}
                     </div>
                     {selectedCourses.includes(course.id) && (
                       <CheckCircle className="text-green-500" size={20} />
                     )}
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">{course.code}</h3>
-                  <p className="text-gray-600 mb-4">{course.title}</p>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">{course.code}</h3>
+                  <p className="text-gray-600 dark:text-gray-300 mb-4">{course.title}</p>
                   {course.description && (
-                    <p className="text-sm text-gray-500 mb-4 line-clamp-2">{course.description}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 line-clamp-2">{course.description}</p>
                   )}
-                  <div className="flex items-center justify-between text-sm text-gray-500">
+                  <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
                     <span className="flex items-center">
                       <FileText size={16} className="mr-1" />
                       View materials
@@ -1322,11 +1506,11 @@ const ARMSPlatform = () => {
       <div className="flex items-center space-x-4">
         <button 
           onClick={() => setSelectedCourse(null)}
-          className="text-indigo-600 hover:text-indigo-700"
+          className="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100"
         >
           ← Back to courses
         </button>
-        <h1 className="text-3xl font-bold text-gray-900">{selectedCourse?.code} - {selectedCourse?.title}</h1>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">{selectedCourse?.code} - {selectedCourse?.title}</h1>
       </div>
       
       {error && (
@@ -1338,56 +1522,49 @@ const ARMSPlatform = () => {
       
       {/* Recently Uploaded Section */}
       {recentMaterials.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-6">
-          <div className="p-6 border-b border-gray-200">
+        <div className="bg-white dark:bg-neutral-900 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-800 mb-6">
+          <div className="p-6 border-b border-gray-200 dark:border-neutral-800">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">Recently Uploaded</h2>
-                <p className="text-gray-600">Latest materials added to this course</p>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Recently Uploaded</h2>
+                <p className="text-gray-600 dark:text-gray-400">Latest materials added to this course</p>
               </div>
               <div className="flex items-center space-x-2">
-                <Bell className="text-indigo-600" size={20} />
-                <span className="text-sm font-medium text-indigo-600">{recentMaterials.length} new</span>
+                <Bell className="text-gray-500" size={20} />
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{recentMaterials.length} new</span>
               </div>
             </div>
           </div>
           <div className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {recentMaterials.map(material => (
-                <div key={material.id} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                <div key={material.id} className="border border-gray-200 dark:border-neutral-800 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors">
                   <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-medium text-gray-900 truncate">{material.title}</h3>
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                      material.type === 'NOTES' ? 'bg-blue-100 text-blue-800' :
-                      material.type === 'ASSIGNMENT' ? 'bg-green-100 text-green-800' :
-                      material.type === 'CODE' ? 'bg-purple-100 text-purple-800' :
-                      material.type === 'PPT' ? 'bg-orange-100 text-orange-800' :
-                      material.type === 'DOC' ? 'bg-gray-100 text-gray-800' :
-                      'bg-indigo-100 text-indigo-800'
-                    }`}>
+                    <h3 className="font-medium text-gray-900 dark:text-gray-100 truncate">{material.title}</h3>
+                    <span className={"px-2 py-1 text-xs font-medium rounded-full bg-gray-200 text-gray-800 dark:bg-neutral-800 dark:text-gray-200"}>
                       {material.type}
                     </span>
                   </div>
                   <div className="flex items-center space-x-2 mb-1">
                     <button 
                       onClick={() => material.uploader ? handleUserSelect({ userId: material.uploader.id, name: material.uploader.name }, 'course') : null}
-                      className="text-sm text-gray-600 hover:text-indigo-600 flex items-center space-x-1"
+                      className="text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 flex items-center space-x-1"
                     >
                       <User size={14} />
                       <span>{material.uploader?.fullName || material.uploader?.firstName || material.uploader?.name || material.uploader?.email || 'Unknown uploader'}</span>
                     </button>
                   </div>
-                  <div className="text-sm text-gray-500 mb-2">
+                  <div className="text-sm text-gray-500 dark:text-gray-400 mb-2">
                     {(() => { const s = material.size ?? material.fileSize; return s ? `${(s / 1024 / 1024).toFixed(1)} MB` : 'Unknown size'; })()}
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-gray-400 dark:text-gray-500">
                       {(() => { const d = material.uploadedAt || material.createdAt; return d ? new Date(d).toLocaleDateString() : 'Unknown date'; })()}
                     </span>
                     <div className="flex items-center space-x-3">
                       <button
                         onClick={() => handleToggleLike(material.id)}
-                        className={`text-sm flex items-center space-x-1 px-2 py-1 rounded ${likedMap[material.id] ? 'text-indigo-700 bg-indigo-50' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
+                        className={`text-sm flex items-center space-x-1 px-2 py-1 rounded dark:text-gray-300 dark:hover:text-gray-100 dark:hover:bg-neutral-800 ${likedMap[material.id] ? 'text-gray-900 bg-gray-200 dark:text-gray-100 dark:bg-neutral-800' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50 dark:hover:bg-neutral-800'}`}
                         title="Like"
                       >
                         <ThumbsUp size={14} />
@@ -1397,7 +1574,7 @@ const ARMSPlatform = () => {
                         href={getFileUrl(material.path)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-indigo-600 hover:text-indigo-700 text-sm flex items-center space-x-1"
+                        className="text-gray-700 dark:text-gray-300 text-sm flex items-center space-x-1 hover:text-gray-900 dark:hover:text-gray-100"
                       >
                         <Download size={14} />
                         <span>Download</span>
@@ -1411,449 +1588,203 @@ const ARMSPlatform = () => {
         </div>
       )}
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900">All Course Materials</h2>
-              <p className="text-gray-600">Complete list of materials for this course</p>
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="lg:col-span-3">
+          <div className="bg-white dark:bg-neutral-900 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-800">
+            <div className="p-6 border-b border-gray-200 dark:border-neutral-800">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">All Course Materials</h2>
+                  <p className="text-gray-600 dark:text-gray-400">Complete list of materials for this course</p>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <SearchInput
+                    className="w-64"
+                    placeholder="Search materials..."
+                    value={materialSearchQuery}
+                    onChange={handleMaterialSearch}
+                  />
+                  <select 
+                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500"
+                    value={selectedMaterialType}
+                    onChange={(e) => handleMaterialTypeFilter(e.target.value)}
+                  >
+                    <option value="ALL">All Types</option>
+                    <option value="NOTES">Lecture Notes</option>
+                    <option value="ASSIGNMENT">Assignment</option>
+                    <option value="CODE">Code/Lab</option>
+                    <option value="PPT">Presentation</option>
+                    <option value="DOC">Document</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                  <button
+                    onClick={seedDemoMaterialsForCourse}
+                    className="px-3 py-2 border border-dashed border-gray-400 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm"
+                    title="Add sample materials for demo"
+                  >
+                    Add Sample Materials
+                  </button>
+                </div>
+              </div>
             </div>
-            <div className="flex items-center space-x-3">
-              <SearchInput
-                className="w-64"
-                placeholder="Search materials..."
-                value={materialSearchQuery}
-                onChange={handleMaterialSearch}
-              />
-              <select 
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                value={selectedMaterialType}
-                onChange={(e) => handleMaterialTypeFilter(e.target.value)}
-              >
-                <option value="ALL">All Types</option>
-                <option value="NOTES">Lecture Notes</option>
-                <option value="ASSIGNMENT">Assignment</option>
-                <option value="CODE">Code/Lab</option>
-                <option value="PPT">Presentation</option>
-                <option value="DOC">Document</option>
-                <option value="OTHER">Other</option>
-              </select>
-              <button
-                onClick={() => setShowCourseChat(true)}
-                className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-2"
-                title="Open course chat"
-              >
-                <MessageCircle size={16} />
-                <span>Course Chat</span>
-              </button>
-            </div>
-          </div>
-        </div>
-        
-        {loading ? (
-          <div className="p-8 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
-            <p className="text-gray-600 mt-2">Loading materials...</p>
-          </div>
-        ) : (
-          <div className="divide-y divide-gray-200">
-            {filteredMaterials.length === 0 ? (
-              <div className="p-8 text-center text-gray-500">
-                {materials.length === 0 ? 
-                  'No materials uploaded yet for this course.' : 
-                  'No materials match your search criteria.'
-                }
+            {loading ? (
+              <div className="p-8 text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-500 mx-auto"></div>
+                <p className="text-gray-600 mt-2">Loading materials...</p>
               </div>
             ) : (
-              filteredMaterials.map(material => (
-                <div key={material.id} className="p-6 hover:bg-gray-50 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-4">
-                      <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
-                        <FileText className="text-indigo-600" size={20} />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-900">{material.title}</h3>
-                        <div className="flex items-center space-x-3">
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                            material.type === 'NOTES' ? 'bg-blue-100 text-blue-800' :
-                            material.type === 'ASSIGNMENT' ? 'bg-green-100 text-green-800' :
-                            material.type === 'CODE' ? 'bg-purple-100 text-purple-800' :
-                            material.type === 'PPT' ? 'bg-orange-100 text-orange-800' :
-                            material.type === 'DOC' ? 'bg-gray-100 text-gray-800' :
-                            'bg-indigo-100 text-indigo-800'
-                          }`}>
-                            {material.type}
-                          </span>
-                          <div className="text-sm text-gray-500">
-                            {(() => { const s = material.size ?? material.fileSize; return s ? `${(s / 1024 / 1024).toFixed(1)} MB` : 'Unknown size'; })()}
-                          </div>
-                        </div>
-                        <div className="flex items-center mt-1">
-                          <button 
-                            onClick={() => material.uploader ? handleUserSelect({ userId: material.uploader.id, name: material.uploader.name }, 'course') : null}
-                            className="text-sm text-gray-600 hover:text-indigo-600 flex items-center space-x-1"
-                          >
-                            <User size={14} />
-                            <span>{material.uploader?.fullName || material.uploader?.firstName || material.uploader?.name || material.uploader?.email || 'Unknown uploader'}</span>
-                          </button>
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          {(() => { const d = material.uploadedAt || material.createdAt; return d ? new Date(d).toLocaleDateString() : 'Unknown date'; })()}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={() => handleToggleLike(material.id)}
-                        className={`p-2 rounded-lg transition-colors ${likedMap[material.id] ? 'text-indigo-700 bg-indigo-50' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
-                        title="Like"
-                      >
-                        <div className="flex items-center space-x-1">
-                          <ThumbsUp size={16} />
-                          <span className="text-sm">{likesCountMap[material.id] || 0}</span>
-                        </div>
-                      </button>
-                      <button
-                        onClick={() => toggleComments(material.id)}
-                        className={`p-2 rounded-lg transition-colors ${commentsOpen[material.id] ? 'text-indigo-700 bg-indigo-50' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
-                        title="Comments"
-                      >
-                        <div className="flex items-center space-x-1">
-                          <MessageCircle size={16} />
-                          <span className="text-sm">{commentCounts[material.id] || 0}</span>
-                        </div>
-                      </button>
-                      <a 
-                        href={getFileUrl(material.path)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-indigo-600 hover:text-indigo-700 p-2 rounded-lg hover:bg-indigo-50 transition-colors"
-                        title="Download"
-                      >
-                        <Download size={16} />
-                      </a>
-                    </div>
+              <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                {filteredMaterials.length === 0 ? (
+                  <div className="p-8 text-center text-gray-500">
+                    {materials.length === 0 ? 
+                      'No materials uploaded yet for this course.' : 
+                      'No materials match your search criteria.'
+                    }
                   </div>
-                  {commentsOpen[material.id] && (
-                    <div className="mt-4 border-t border-gray-100 pt-4">
-                      <div className="max-h-48 overflow-y-auto space-y-3">
-                        {(commentsMap[material.id] || []).map(c => (
-                          <div key={c.id} className="text-sm">
-                            <div className="flex items-baseline justify-between">
-                              <div className="flex items-baseline space-x-2">
-                                <span className="font-medium text-gray-800">{c.userId === (user?.id) ? 'You' : (c.userName || 'User')}</span>
-                                <span className="text-xs text-gray-400">{c.createdAt?.toDate ? c.createdAt.toDate().toLocaleString() : (c.createdAt ? new Date(c.createdAt).toLocaleString() : '')}</span>
+                ) : (
+                  filteredMaterials.map(material => (
+                    <div key={material.id} className="p-6 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-4">
+                          <div className="w-10 h-10 bg-gray-200 dark:bg-neutral-700 rounded-lg flex items-center justify-center">
+                            <FileText className="text-gray-700 dark:text-gray-200" size={20} />
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{material.title}</h3>
+                            <div className="flex items-center space-x-3">
+                              <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-200 text-gray-800 dark:bg-neutral-800 dark:text-gray-200">
+                                {material.type}
+                              </span>
+                              <div className="text-sm text-gray-500 dark:text-gray-400">
+                                {(() => { const s = material.size ?? material.fileSize; return s ? `${(s / 1024 / 1024).toFixed(1)} MB` : 'Unknown size'; })()}
                               </div>
-                              {c.userId === (user?.id) && (
-                                <button className="text-xs text-red-500 hover:text-red-700" onClick={() => deleteCommentFromMaterial(material.id, c)}>Delete</button>
-                              )}
                             </div>
-                            <div className="text-gray-700">{c.text}</div>
-                          </div>
-                        ))}
-                        {(commentsMap[material.id] || []).length === 0 && (
-                          <div className="text-center text-gray-400">No comments yet</div>
-                        )}
-                      </div>
-                      <div className="mt-3 flex items-center space-x-2">
-                        <input
-                          value={commentInputs[material.id] || ''}
-                          onChange={(e) => handleCommentInputChange(material.id, e.target.value)}
-                          onKeyDown={(e) => { if (e.key === 'Enter') addCommentToMaterial(material.id); }}
-                          placeholder="Write a comment"
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                        />
-                        <button onClick={() => addCommentToMaterial(material.id)} disabled={!((commentInputs[material.id] || '').trim())} className="px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50">Post</button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-
-  const Rankings = () => (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">Top Contributors</h1>
-      </div>
-      
-      {error && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-center space-x-2">
-          <AlertCircle className="text-red-500" size={20} />
-          <span className="text-red-700">{error}</span>
-        </div>
-      )}
-      
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-        <div className="p-6 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900">Leaderboard</h2>
-          <p className="text-gray-600">Based on total uploads and contributions</p>
-        </div>
-        
-        {loading ? (
-          <div className="p-8 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
-            <p className="text-gray-600 mt-2">Loading rankings...</p>
-          </div>
-        ) : (
-          <div className="divide-y divide-gray-200">
-            {rankings.map((user, index) => (
-              <div key={user.userId} className="p-6 hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => handleUserSelect(user, 'rankings')}>
-                <div className="flex items-center space-x-4">
-                  <div className="flex items-center justify-center w-8 h-8">
-                    {index === 0 && <Trophy className="text-yellow-500" size={24} />}
-                    {index === 1 && <Star className="text-gray-400" size={24} />}
-                    {index === 2 && <Star className="text-orange-400" size={24} />}
-                    {index > 2 && <span className="text-gray-400 font-semibold">{index + 1}</span>}
-                  </div>
-                  
-                  <div className="w-12 h-12 bg-indigo-600 rounded-full flex items-center justify-center text-white font-semibold">
-                    {user.name.charAt(0)}
-                  </div>
-                  
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-gray-900">{user.name}</h3>
-                    <p className="text-gray-600">{user.uploads} total uploads</p>
-                  </div>
-                  
-                  <div className="text-right">
-                    <div className="text-2xl font-bold text-indigo-600">{user.uploads}</div>
-                    <div className="text-sm text-gray-500">uploads</div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-
-  const NotesPage = () => {
-    const storageKey = user ? `arms:${user.id}:notes` : 'arms:anon:notes';
-    const [text, setText] = useState(() => localStorage.getItem(storageKey) || '');
-    const [saving, setSaving] = useState(false);
-    useEffect(() => {
-      setSaving(true);
-      const id = setTimeout(() => {
-        try { localStorage.setItem(storageKey, text); } catch (e) {}
-        setSaving(false);
-      }, 400);
-      return () => clearTimeout(id);
-    }, [text, storageKey]);
-    useEffect(() => {
-      setText(localStorage.getItem(storageKey) || '');
-    }, [storageKey]);
-    return (
-      <div className="p-6 space-y-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-gray-900">Personal Notes</h1>
-          <span className="text-sm text-gray-500">{saving ? 'Saving…' : 'Saved'}</span>
-        </div>
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          className="w-full h-[60vh] p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-          placeholder="Write anything you want to remember…"
-        />
-      </div>
-    );
-  };
-
-  const UserProfile = () => {
-    const stats = userProfile?.statistics || {};
-    const safeStats = {
-      notes: stats.notes ?? 0,
-      assignments: stats.assignments ?? 0,
-      code: stats.code ?? 0,
-      presentations: stats.presentations ?? 0,
-      documents: stats.documents ?? 0,
-      other: stats.other ?? 0,
-      uploads: stats.uploads ?? 0,
-      downloads: stats.downloads ?? 0,
-    };
-    const materialsByCourse = userProfile?.materialsByCourse || {};
-    const totalUploads = userProfile?.totalUploads ?? safeStats.uploads ?? 0;
-    const displayName = userProfile?.name || 'Unknown';
-    const displayRole = (userProfile?.role || 'STUDENT').toLowerCase();
-    const displayEmail = userProfile?.email || '';
-
-    return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center space-x-4">
-        <button 
-          onClick={() => {
-            setSelectedUser(null);
-            setUserProfile(null);
-            if (profileBackTo === 'course') {
-              setCurrentPage('dashboard');
-            } else if (profileBackTo === 'home') {
-              setCurrentPage('home');
-            } else {
-              setCurrentPage('rankings');
-            }
-          }}
-          className="text-indigo-600 hover:text-indigo-700"
-        >
-          ← Back to {profileBackTo === 'course' ? 'course' : profileBackTo === 'home' ? 'home' : 'rankings'}
-        </button>
-        <h1 className="text-3xl font-bold text-gray-900">
-          {selectedUser && selectedUser.userId === user.id ? 'My Profile' : `${displayName}'s Profile`}
-        </h1>
-      </div>
-      
-      {error && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-center space-x-2">
-          <AlertCircle className="text-red-500" size={20} />
-          <span className="text-red-700">{error}</span>
-        </div>
-      )}
-      
-      {(() => {
-        console.log('Profile render state:', { loading, userProfile, selectedUser });
-        return null;
-      })()}
-      {loading ? (
-        <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
-          <p className="text-gray-600 mt-4">Loading profile...</p>
-        </div>
-      ) : userProfile ? (
-        <div className="space-y-6">
-          {/* User Info */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center space-x-6">
-              <div className="w-20 h-20 bg-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-2xl">
-                {displayName.charAt(0)}
-              </div>
-              <div className="flex-1">
-                <h2 className="text-2xl font-bold text-gray-900">{displayName}</h2>
-                <p className="text-gray-600">{displayEmail}</p>
-                <p className="text-sm text-gray-500 capitalize">{displayRole}</p>
-              </div>
-              <div className="text-right">
-                <div className="text-3xl font-bold text-indigo-600">{totalUploads}</div>
-                <div className="text-sm text-gray-500">Total Uploads</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Statistics */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h3 className="text-xl font-semibold text-gray-900 mb-4">Upload Statistics</h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-              <div className="text-center p-4 bg-blue-50 rounded-lg">
-                <div className="text-2xl font-bold text-blue-600">{safeStats.notes}</div>
-                <div className="text-sm text-blue-800">Notes</div>
-              </div>
-              <div className="text-center p-4 bg-green-50 rounded-lg">
-                <div className="text-2xl font-bold text-green-600">{safeStats.assignments}</div>
-                <div className="text-sm text-green-800">Assignments</div>
-              </div>
-              <div className="text-center p-4 bg-purple-50 rounded-lg">
-                <div className="text-2xl font-bold text-purple-600">{safeStats.code}</div>
-                <div className="text-sm text-purple-800">Code</div>
-              </div>
-              <div className="text-center p-4 bg-orange-50 rounded-lg">
-                <div className="text-2xl font-bold text-orange-600">{safeStats.presentations}</div>
-                <div className="text-sm text-orange-800">Presentations</div>
-              </div>
-              <div className="text-center p-4 bg-gray-50 rounded-lg">
-                <div className="text-2xl font-bold text-gray-600">{safeStats.documents}</div>
-                <div className="text-sm text-gray-800">Documents</div>
-              </div>
-              <div className="text-center p-4 bg-indigo-50 rounded-lg">
-                <div className="text-2xl font-bold text-indigo-600">{safeStats.other}</div>
-                <div className="text-sm text-indigo-800">Other</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Materials by Course */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-            <div className="p-6 border-b border-gray-200">
-              <h3 className="text-xl font-semibold text-gray-900">Contributions by Course</h3>
-              <p className="text-gray-600">Materials uploaded to each course</p>
-            </div>
-            <div className="divide-y divide-gray-200">
-              {Object.entries(materialsByCourse).map(([courseName, materials]) => (
-                <div key={courseName} className="p-6">
-                  <h4 className="text-lg font-semibold text-gray-900 mb-3">{courseName}</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {materials.map(material => (
-                      <div key={material.id} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                        <div className="flex items-center justify-between mb-2">
-                          <h5 className="font-medium text-gray-900 truncate">{material.title}</h5>
-                          <div className="flex items-center space-x-2">
-                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                              material.type === 'NOTES' ? 'bg-blue-100 text-blue-800' :
-                              material.type === 'ASSIGNMENT' ? 'bg-green-100 text-green-800' :
-                              material.type === 'CODE' ? 'bg-purple-100 text-purple-800' :
-                              material.type === 'PPT' ? 'bg-orange-100 text-orange-800' :
-                              material.type === 'DOC' ? 'bg-gray-100 text-gray-800' :
-                              'bg-indigo-100 text-indigo-800'
-                            }`}>
-                              {material.type}
-                            </span>
-                            {/* Show delete button only for current user's own materials */}
-                            {selectedUser && selectedUser.userId === user.id && (
-                              <button
-                                onClick={() => handleDeleteMaterial(material.id)}
-                                className="text-red-500 hover:text-red-700 transition-colors"
-                                title="Delete material"
+                            <div className="flex items-center mt-1">
+                              <button 
+                                onClick={() => material.uploader ? handleUserSelect({ userId: material.uploader.id, name: material.uploader.name }, 'course') : null}
+                                className="text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 flex items-center space-x-1"
                               >
-                                <Trash2 size={14} />
+                                <User size={14} />
+                                <span>{material.uploader?.fullName || material.uploader?.firstName || material.uploader?.name || material.uploader?.email || 'Unknown uploader'}</span>
                               </button>
-                            )}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                              {(() => { const d = material.uploadedAt || material.createdAt; return d ? new Date(d).toLocaleDateString() : 'Unknown date'; })()}
+                            </div>
                           </div>
                         </div>
-                        <p className="text-sm text-gray-500">
-                          {material.size ? `${(material.size / 1024 / 1024).toFixed(1)} MB` : 'Unknown size'}
-                        </p>
-                        <div className="mt-2">
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => handleToggleLike(material.id)}
+                            className={`p-2 rounded-lg transition-colors dark:text-gray-300 dark:hover:text-gray-100 dark:hover:bg-neutral-800 ${likedMap[material.id] ? 'text-gray-900 bg-gray-200 dark:text-gray-100 dark:bg-neutral-800' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
+                            title="Like"
+                          >
+                            <div className="flex items-center space-x-1">
+                              <ThumbsUp size={16} />
+                              <span className="text-sm">{likesCountMap[material.id] || 0}</span>
+                            </div>
+                          </button>
+                          <button
+                            onClick={() => toggleComments(material.id)}
+                            className={`p-2 rounded-lg transition-colors dark:text-gray-300 dark:hover:text-gray-100 dark:hover:bg-neutral-800 ${commentsOpen[material.id] ? 'text-gray-900 bg-gray-200 dark:text-gray-100 dark:bg-neutral-800' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
+                            title="Comments"
+                          >
+                            <div className="flex items-center space-x-1">
+                              <MessageCircle size={16} />
+                              <span className="text-sm">{commentCounts[material.id] || 0}</span>
+                            </div>
+                          </button>
                           <a 
                             href={getFileUrl(material.path)}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-indigo-600 hover:text-indigo-700 text-sm flex items-center space-x-1"
+                            className="text-gray-700 dark:text-gray-300 p-2 rounded-lg hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"
+                            title="Download"
                           >
-                            <Download size={14} />
-                            <span>Download</span>
+                            <Download size={16} />
                           </a>
                         </div>
                       </div>
-                    ))}
+                      {commentsOpen[material.id] && (
+                        <div className="mt-4 border-t border-gray-100 pt-4">
+                          <div className="max-h-48 overflow-y-auto space-y-3">
+                            {(commentsMap[material.id] || []).map(c => (
+                              <div key={c.id} className="text-sm">
+                                <div className="flex items-baseline justify-between">
+                                  <div className="flex items-baseline space-x-2">
+                                    <span className="font-medium text-gray-800 dark:text-gray-200">{c.userId === (user?.id) ? 'You' : (c.userName || 'User')}</span>
+                                    <span className="text-xs text-gray-400 dark:text-gray-500">{c.createdAt?.toDate ? c.createdAt.toDate().toLocaleString() : (c.createdAt ? new Date(c.createdAt).toLocaleString() : '')}</span>
+                                  </div>
+                                  {c.userId === (user?.id) && (
+                                    <button className="text-xs text-red-500 hover:text-red-700" onClick={() => deleteCommentFromMaterial(material.id, c)}>Delete</button>
+                                  )}
+                                </div>
+                                <div className="text-gray-700 dark:text-gray-200">{c.text}</div>
+                              </div>
+                            ))}
+                            {(commentsMap[material.id] || []).length === 0 && (
+                              <div className="text-center text-gray-400 dark:text-gray-500">No comments yet</div>
+                            )}
+                          </div>
+                          <div className="mt-3 flex items-center space-x-2">
+                            <input
+                              value={commentInputs[material.id] || ''}
+                              onChange={(e) => handleCommentInputChange(material.id, e.target.value)}
+                              onKeyDown={(e) => { if (e.key === 'Enter') addCommentToMaterial(material.id); }}
+                              placeholder="Write a comment"
+                              className="flex-1 px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg focus:ring-2 focus:ring-gray-400 dark:bg-neutral-900 dark:text-gray-100"
+                            />
+                            <button onClick={() => addCommentToMaterial(material.id)} disabled={!((commentInputs[material.id] || '').trim())} className="px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 disabled:opacity-50">Post</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="bg-white dark:bg-neutral-900 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-800 p-6 lg:col-span-1">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Course Chat</h3>
+          </div>
+          <div className="flex flex-col h-[480px]">
+            <div className="flex-1 overflow-y-auto space-y-3 border border-gray-100 dark:border-neutral-800 rounded-lg p-3">
+              {courseMessages.map(m => (
+                <div key={m.id || Math.random()} className="text-sm">
+                  <div className="flex items-baseline space-x-2">
+                    <span className="font-medium text-gray-800 dark:text-gray-200">{m.userId === (user?.id) ? 'You' : (m.userName || 'User')}</span>
+                    <span className="text-xs text-gray-400 dark:text-gray-500">{m.createdAt?.toDate ? m.createdAt.toDate().toLocaleString() : (m.createdAt ? new Date(m.createdAt).toLocaleString() : '')}</span>
                   </div>
+                  <div className="text-gray-700 dark:text-gray-200">{m.text}</div>
                 </div>
               ))}
-              {Object.keys(materialsByCourse).length === 0 && (
-                <div className="p-8 text-center text-gray-500">
-                  No materials uploaded yet.
-                </div>
+              {courseMessages.length === 0 && (
+                <div className="text-center text-gray-400 dark:text-gray-500">No messages yet. Say hello!</div>
               )}
+            </div>
+            <div className="mt-3 flex items-center space-x-2">
+              <input
+                value={courseChatText}
+                onChange={(e) => setCourseChatText(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') sendCourseChat(); }}
+                placeholder="Type a message"
+                className="flex-1 px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg focus:ring-2 focus:ring-gray-400 dark:bg-neutral-900 dark:text-gray-100"
+              />
+              <button onClick={sendCourseChat} className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 disabled:opacity-50">Send</button>
             </div>
           </div>
         </div>
-      ) : (
-        <div className="text-center py-12">
-          <div className="text-gray-500 text-lg">Profile not found</div>
-        </div>
-      )}
+      </div>
     </div>
-    );
-  };
+  );
 
   const UploadModalEl = (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl max-w-md w-full p-6">
+      <div className="bg-white dark:bg-neutral-900 rounded-xl max-w-md w-full p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-900">Upload Material</h2>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Upload Material</h2>
           <button onClick={() => setShowUploadModal(false)}>
             <X className="text-gray-400 hover:text-gray-600" size={24} />
           </button>
@@ -1868,7 +1799,7 @@ const ARMSPlatform = () => {
         
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Find Course</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Find Course</label>
             <div className="relative">
               <SearchInput
                 className="w-full"
@@ -1876,12 +1807,31 @@ const ARMSPlatform = () => {
                 value={uploadCourseQuery}
                 onChange={setUploadCourseQuery}
               />
+              {uploadCourseQuery && courses.filter(c => (c.code + ' ' + c.title).toLowerCase().includes(uploadCourseQuery.toLowerCase())).slice(0,6).length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-lg shadow z-50 max-h-48 overflow-y-auto">
+                  {courses
+                    .filter(c => (c.code + ' ' + c.title).toLowerCase().includes(uploadCourseQuery.toLowerCase()))
+                    .slice(0,6)
+                    .map(c => (
+                      <div key={c.id} className="p-2 hover:bg-gray-50 dark:hover:bg-neutral-800 cursor-pointer flex items-center justify-between" onClick={() => { setUploadForm(prev => ({ ...prev, courseId: c.id })); setUploadCourseQuery(c.code + ' - ' + c.title); }}>
+                        <div className="flex items-center space-x-2">
+                          <div className="w-8 h-8 bg-gray-700 rounded-lg text-white text-sm font-bold flex items-center justify-center">{c.code.substring(0,2)}</div>
+                          <div>
+                            <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{c.code}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">{c.title}</div>
+                          </div>
+                        </div>
+                        <span className="text-xs text-gray-400 dark:text-gray-500">Select</span>
+                      </div>
+                    ))}
+                </div>
+              )}
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Course</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Course</label>
             <select 
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg focus:ring-2 focus:ring-gray-400 dark:bg-neutral-900 dark:text-gray-100"
               value={uploadForm.courseId}
               onChange={(e) => setUploadForm(prev => ({ ...prev, courseId: e.target.value }))}
             >
@@ -1903,9 +1853,9 @@ const ARMSPlatform = () => {
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Content Type</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Content Type</label>
             <select 
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg focus:ring-2 focus:ring-gray-400 dark:bg-neutral-900 dark:text-gray-100"
               value={uploadForm.type}
               onChange={(e) => setUploadForm(prev => ({ ...prev, type: e.target.value }))}
             >
@@ -1919,10 +1869,10 @@ const ARMSPlatform = () => {
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title</label>
             <input 
               type="text" 
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" 
+              className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg focus:ring-2 focus:ring-gray-400 dark:bg-neutral-900 dark:text-gray-100" 
               placeholder="Enter material title"
               value={uploadForm.title}
               onChange={(e) => setUploadForm(prev => ({ ...prev, title: e.target.value }))}
@@ -1930,20 +1880,20 @@ const ARMSPlatform = () => {
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">File</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">File</label>
             <input
               type="file"
               onChange={handleFileSelect}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg focus:ring-2 focus:ring-gray-400 dark:bg-neutral-900 dark:text-gray-100"
             />
             {uploadForm.file && (
-              <div className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="mt-2 p-3 bg-gray-50 dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-700">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
                     <FileText size={16} className="text-gray-500" />
                     <div>
-                      <p className="text-sm font-medium text-gray-700">{uploadForm.file.name}</p>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{uploadForm.file.name}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
                         {(uploadForm.file.size / 1024 / 1024).toFixed(2)} MB • {uploadForm.file.type || 'Unknown type'}
                       </p>
                     </div>
@@ -1962,14 +1912,14 @@ const ARMSPlatform = () => {
           <div className="flex space-x-3 pt-4">
             <button 
               onClick={() => setShowUploadModal(false)}
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
             >
               Cancel
             </button>
             <button 
               onClick={handleUpload}
               disabled={uploading || !uploadForm.courseId || !uploadForm.file}
-              className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
+              className="flex-1 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors disabled:opacity-50"
             >
               {uploading ? 'Uploading...' : 'Upload'}
             </button>
@@ -2015,9 +1965,9 @@ const ARMSPlatform = () => {
                     setSelectedCourses(selectedCourses.filter(id => id !== course.id));
                   }
                 }}
-                className="text-indigo-600 focus:ring-indigo-500"
+                className="text-gray-700 focus:ring-purple-500"
               />
-              <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white text-sm font-bold">
+              <div className="w-8 h-8 bg-gray-700 rounded-lg flex items-center justify-center text-white text-sm font-bold">
                 {course.code.substring(0, 2)}
               </div>
               <div>
@@ -2045,7 +1995,7 @@ const ARMSPlatform = () => {
               }
               setShowFilterModal(false);
             }}
-            className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+            className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-500 transition-colors"
           >
             Apply Filter
           </button>
@@ -2100,7 +2050,7 @@ const ARMSPlatform = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
               <input 
                 type="text" 
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" 
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" 
                 placeholder="Enter news title"
                 value={newsForm.title}
                 onChange={(e) => setNewsForm(prev => ({ ...prev, title: e.target.value }))}
@@ -2110,7 +2060,7 @@ const ARMSPlatform = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
               <select 
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500"
                 value={newsForm.type}
                 onChange={(e) => setNewsForm(prev => ({ ...prev, type: e.target.value }))}
               >
@@ -2124,7 +2074,7 @@ const ARMSPlatform = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Content *</label>
               <textarea 
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 h-32" 
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 h-32" 
                 placeholder="Enter news content"
                 value={newsForm.content}
                 onChange={(e) => setNewsForm(prev => ({ ...prev, content: e.target.value }))}
@@ -2141,7 +2091,7 @@ const ARMSPlatform = () => {
               <button 
                 onClick={handleCreateNews}
                 disabled={loading || !newsForm.title || !newsForm.content}
-                className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                className="flex-1 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors disabled:opacity-50"
               >
                 {loading ? 'Creating...' : 'Create News'}
               </button>
@@ -2160,11 +2110,11 @@ const ARMSPlatform = () => {
   }
 
   return (
-    <div className="h-screen flex bg-gray-50">
+    <div className="h-screen flex bg-gray-50 dark:bg-neutral-950 text-gray-900 dark:text-gray-100">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         {HeaderEl}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-neutral-950">
           {currentPage === 'home' && <HomePage user={user} setShowCreateNews={setShowCreateNews} error={error} />}
           {currentPage === 'dashboard' && selectedCourse ? (
             CourseDetailEl
@@ -2173,7 +2123,22 @@ const ARMSPlatform = () => {
           ) : null}
           {currentPage === 'rankings' && <Rankings />}
           {currentPage === 'notes' && <NotesPage />}
-          {currentPage === 'user-profile' && <UserProfile />}
+          {currentPage === 'user-profile' && userProfile && (
+            <UserProfile 
+              user={userProfile}
+              onBack={() => {
+                setSelectedUser(null);
+                setUserProfile(null);
+                if (profileBackTo === 'course') {
+                  setCurrentPage('dashboard');
+                } else if (profileBackTo === 'home') {
+                  setCurrentPage('home');
+                } else {
+                  setCurrentPage('rankings');
+                }
+              }}
+            />
+          )}
         </div>
       </div>
       

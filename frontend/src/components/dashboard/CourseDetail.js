@@ -60,26 +60,10 @@ const CourseDetail = ({ course, onBack }) => {
   }, [searchQuery, selectedType, materials]);
 
   const getTypeIcon = (type) => {
-    switch (type) {
-      case 'notes': return <BookOpen size={16} className="text-blue-600" />;
-      case 'assignment': return <FileText size={16} className="text-green-600" />;
-      case 'code': return <FileText size={16} className="text-purple-600" />;
-      case 'presentation': return <FileText size={16} className="text-orange-600" />;
-      case 'document': return <FileText size={16} className="text-gray-600" />;
-      default: return <FileText size={16} className="text-gray-600" />;
-    }
+    return <FileText size={16} className="text-gray-500" />;
   };
 
-  const getTypeColor = (type) => {
-    switch (type) {
-      case 'notes': return 'bg-blue-100 text-blue-800';
-      case 'assignment': return 'bg-green-100 text-green-800';
-      case 'code': return 'bg-purple-100 text-purple-800';
-      case 'presentation': return 'bg-orange-100 text-orange-800';
-      case 'document': return 'bg-gray-100 text-gray-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
+  const getTypeColor = () => 'bg-gray-200 text-gray-800 dark:bg-neutral-800 dark:text-gray-200';
 
   const formatFileSize = (bytes) => {
     if (bytes < 1024) return bytes + ' B';
@@ -104,14 +88,14 @@ const CourseDetail = ({ course, onBack }) => {
       </div>
 
       {/* Search and Filter Bar */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+      <div className="bg-white dark:bg-neutral-900 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-800 p-4">
         <div className="flex flex-col lg:flex-row gap-4">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
             <input 
               type="text" 
               placeholder="Search materials..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-400 focus:border-transparent dark:bg-neutral-900 dark:text-gray-100 dark:border-neutral-700"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -122,7 +106,7 @@ const CourseDetail = ({ course, onBack }) => {
             <select 
               value={selectedType}
               onChange={(e) => setSelectedType(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-400 focus:border-transparent dark:bg-neutral-900 dark:text-gray-100 dark:border-neutral-700"
             >
               <option value="all">All Types</option>
               <option value="notes">Notes</option>
@@ -135,7 +119,7 @@ const CourseDetail = ({ course, onBack }) => {
           
           <button 
             onClick={() => setShowUploadModal(true)}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+            className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors"
           >
             Upload Material
           </button>
@@ -162,7 +146,7 @@ const CourseDetail = ({ course, onBack }) => {
         ) : (
           <div className="space-y-3">
             {filteredMaterials.map(material => (
-              <div key={material.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 hover:shadow-md transition-shadow">
+              <div key={material.id} className="bg-white dark:bg-neutral-900 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-800 p-4 hover:shadow-md transition-shadow">
                 <div className="flex items-start space-x-4">
                   <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${getTypeColor(material.type)}`}>
                     {getTypeIcon(material.type)}
@@ -196,10 +180,10 @@ const CourseDetail = ({ course, onBack }) => {
                   </div>
                   
                   <div className="flex items-center space-x-2">
-                    <button className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
+                    <button className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
                       <Eye size={16} className="text-gray-600" />
                     </button>
-                    <button className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
+                    <button className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
                       <Download size={16} className="text-gray-600" />
                     </button>
                   </div>
@@ -213,12 +197,12 @@ const CourseDetail = ({ course, onBack }) => {
       {/* Upload Modal would go here */}
       {showUploadModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-md w-full p-6">
+          <div className="bg-white dark:bg-neutral-900 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-800">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Upload Material</h2>
             <p className="text-gray-600 mb-4">Upload functionality will be implemented here</p>
             <button 
               onClick={() => setShowUploadModal(false)}
-              className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+              className="w-full px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors"
             >
               Close
             </button>

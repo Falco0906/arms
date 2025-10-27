@@ -116,86 +116,86 @@ const UserProfile = ({ user, onBack }) => {
           <ArrowLeft size={20} />
         </button>
         <div className="flex items-center space-x-4">
-          <div className="w-16 h-16 bg-indigo-600 rounded-full flex items-center justify-center text-white text-2xl font-bold">
+          <div className="w-16 h-16 bg-gray-700 dark:bg-neutral-800 rounded-full flex items-center justify-center text-white text-2xl font-bold">
             {safeUser.name.charAt(0)}
           </div>
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">{safeUser.name}</h1>
-            <p className="text-gray-600">{safeUser.role} • {safeUser.uploads} total uploads</p>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">{safeUser.name}</h1>
+            <p className="text-gray-600 dark:text-gray-400">{safeUser.role} • {safeUser.uploads} total uploads</p>
           </div>
         </div>
       </div>
 
       {/* Stats Overview */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+        <div className="bg-white dark:bg-neutral-900 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-800 p-4">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
               <FileText size={20} className="text-blue-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Total Uploads</p>
-              <p className="text-2xl font-bold text-gray-900">{safeUser.uploads}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Total Uploads</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{safeUser.uploads}</p>
             </div>
           </div>
         </div>
         
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+        <div className="bg-white dark:bg-neutral-900 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-800 p-4">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
               <Download size={20} className="text-green-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Total Downloads</p>
-              <p className="text-2xl font-bold text-gray-900">
+              <p className="text-sm text-gray-500 dark:text-gray-400">Total Downloads</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
                 {Object.values(courseStats || {}).reduce((sum, stat) => sum + (stat?.totalDownloads || 0), 0).toLocaleString()}
               </p>
             </div>
           </div>
         </div>
         
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+        <div className="bg-white dark:bg-neutral-900 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-800 p-4">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
               <BookOpen size={20} className="text-purple-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Courses</p>
-              <p className="text-2xl font-bold text-gray-900">{courses.length}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Courses</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{courses.length}</p>
             </div>
           </div>
         </div>
         
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+        <div className="bg-white dark:bg-neutral-900 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-800 p-4">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
               <TrendingUp size={20} className="text-orange-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Ranking</p>
-              <p className="text-2xl font-bold text-gray-900">#{safeUser.rank}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Ranking</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">#{safeUser.rank}</p>
             </div>
           </div>
         </div>
       </div>
 
       {/* Course Contributions */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-        <div className="p-6 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900">Course Contributions</h2>
-          <p className="text-gray-600">Breakdown of uploads by course</p>
+      <div className="bg-white dark:bg-neutral-900 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-800">
+        <div className="p-6 border-b border-gray-200 dark:border-neutral-800">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Course Contributions</h2>
+          <p className="text-gray-600 dark:text-gray-400">Breakdown of uploads by course</p>
         </div>
         
         <div className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {courses.map(course => (
-              <div key={course} className="text-center p-4 rounded-lg hover:bg-gray-50 transition-colors">
-                <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center mx-auto mb-3">
-                  <span className="text-indigo-600 font-bold text-lg">{course.substring(0, 2)}</span>
+              <div key={course} className="text-center p-4 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors">
+                <div className="w-12 h-12 bg-gray-200 dark:bg-neutral-800 rounded-lg flex items-center justify-center mx-auto mb-3">
+                  <span className="text-gray-700 dark:text-gray-200 font-bold text-lg">{course.substring(0, 2)}</span>
                 </div>
-                <h3 className="font-semibold text-gray-900 mb-1">{course}</h3>
-                <p className="text-2xl font-bold text-indigo-600">{courseStats[course]?.count || 0}</p>
-                <p className="text-sm text-gray-500">uploads</p>
+                <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-1">{course}</h3>
+                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{courseStats[course]?.count || 0}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">uploads</p>
               </div>
             ))}
           </div>
@@ -203,18 +203,18 @@ const UserProfile = ({ user, onBack }) => {
       </div>
 
       {/* Materials List */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-        <div className="p-6 border-b border-gray-200">
+      <div className="bg-white dark:bg-neutral-900 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-800">
+        <div className="p-6 border-b border-gray-200 dark:border-neutral-800">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-semibold text-gray-900">Uploaded Materials</h2>
-              <p className="text-gray-600">{filteredMaterials.length} materials</p>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Uploaded Materials</h2>
+              <p className="text-gray-600 dark:text-gray-400">{filteredMaterials.length} materials</p>
             </div>
             
             <select 
               value={selectedCourse}
               onChange={(e) => setSelectedCourse(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg focus:ring-2 focus:ring-gray-400 focus:border-transparent dark:bg-neutral-900 dark:text-gray-100"
             >
               <option value="all">All Courses</option>
               {courses.map(course => (
@@ -228,20 +228,20 @@ const UserProfile = ({ user, onBack }) => {
           {filteredMaterials.length === 0 ? (
             <div className="text-center py-12">
               <FileText size={48} className="mx-auto text-gray-400 mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No materials found</h3>
-              <p className="text-gray-500">Try selecting a different course</p>
+              <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No materials found</h3>
+              <p className="text-gray-500 dark:text-gray-400">Try selecting a different course</p>
             </div>
           ) : (
             <div className="space-y-3">
               {filteredMaterials.map(material => (
-                <div key={material.id} className="flex items-center space-x-4 p-4 rounded-lg hover:bg-gray-50 transition-colors">
+                <div key={material.id} className="flex items-center space-x-4 p-4 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors">
                   <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${getTypeColor(material.type)}`}>
                     {getTypeIcon(material.type)}
                   </div>
                   
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-medium text-gray-900 truncate">{material.title}</h3>
-                    <div className="flex items-center space-x-4 text-sm text-gray-500 mt-1">
+                    <h3 className="font-medium text-gray-900 dark:text-gray-100 truncate">{material.title}</h3>
+                    <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400 mt-1">
                       <span className="flex items-center">
                         <BookOpen size={14} className="mr-1" />
                         {material.course}
