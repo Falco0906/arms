@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, memo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { 
   Search, 
   Bell, 
@@ -25,7 +25,7 @@ import {
 import HomePage from './components/HomePage';
 import NotificationSidebar from './components/common/NotificationSidebar';
 import { authService } from './services/authService';
-import { courseAPI, materialAPI, rankingsAPI, newsAPI, userAPI, getFileUrl, handleAPIError } from './services/api';
+import { courseAPI, materialAPI, rankingsAPI, newsAPI, userAPI, searchAPI, getFileUrl, handleAPIError } from './services/api';
 import SearchInput from './components/SearchInput';
 
 
@@ -80,10 +80,20 @@ const ARMSPlatform = () => {
     file: null
   });
   const [uploading, setUploading] = useState(false);
+  const [uploadCourseQuery, setUploadCourseQuery] = useState('');
+  const searchTimeoutRef = useRef(null);
 
   const loadPinsRecentsFromStorage = (uid) => {
     try {
-      const pins = JSON.parse(localStorage.getItem(getPinsKey(uid)) || '[]');
+      let pins = JSON.parse(localStorage.getItem(getPinsKey(uid)) || '[]');
+      // migrate legacy key if present
+      if ((!Array.isArray(pins) || pins.length === 0)) {
+        const legacy = JSON.parse(localStorage.getItem('arms:pins') || '[]');
+        if (Array.isArray(legacy) && legacy.length > 0) {
+          pins = legacy;
+          try { localStorage.setItem(getPinsKey(uid), JSON.stringify(legacy)); } catch (e) {}
+        }
+      }
       const recents = JSON.parse(localStorage.getItem(getRecentsKey(uid)) || '[]');
       setPinnedCourseIds(Array.isArray(pins) ? pins : []);
       setRecentCourseIds(Array.isArray(recents) ? recents : []);
@@ -153,6 +163,26 @@ const ARMSPlatform = () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [searchResults.length]);
+
+  // Cleanup pending global search timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Auto-close inbox when clicking anywhere outside the notifications panel
+  useEffect(() => {
+    const closeOnOutside = (e) => {
+      if (!isInboxOpen) return;
+      if (e.target.closest('.notifications-panel')) return;
+      setIsInboxOpen(false);
+    };
+    document.addEventListener('mousedown', closeOnOutside);
+    return () => document.removeEventListener('mousedown', closeOnOutside);
+  }, [isInboxOpen]);
 
   const loadInitialData = async () => {
     setLoading(true);
@@ -289,6 +319,7 @@ const ARMSPlatform = () => {
 
   const handleCourseSelect = async (course) => {
     setSelectedCourse(course);
+    setIsInboxOpen(false);
     setLoading(true);
     setMaterialSearchQuery('');
     setSelectedMaterialType('ALL');
@@ -343,12 +374,33 @@ const ARMSPlatform = () => {
     setLoading(true);
     setError(null);
     try {
-      // Ensure userId is a number
-      const userId = typeof user.userId === 'string' ? parseInt(user.userId) : user.userId;
+      const userId = user.userId || user.id;
       console.log('Fetching profile for userId:', userId);
       const profileData = await userAPI.getUserProfile(userId);
       console.log('Profile data received:', profileData.data);
-      setUserProfile(profileData.data);
+      const p = profileData.data || {};
+      const normalized = {
+        id: p.id || userId,
+        name: p.name || user.name || '',
+        email: p.email || user.email || '',
+        role: p.role || 'STUDENT',
+        statistics: p.statistics || { notes: 0, uploads: 0, downloads: 0 },
+        materialsByCourse: p.materialsByCourse || {},
+        recentCourses: p.recentCourses || [],
+        pinnedCourses: p.pinnedCourses || [],
+        materials: p.materials || [],
+        badges: p.badges || [],
+        achievements: p.achievements || [],
+        preferences: p.preferences || {},
+        social: p.social || {},
+        settings: p.settings || {},
+        totalUploads: p.totalUploads ?? p.statistics?.uploads ?? 0,
+      };
+      normalized.uploads = normalized.uploads ?? normalized.statistics.uploads ?? 0;
+      normalized.downloads = normalized.downloads ?? normalized.statistics.downloads ?? 0;
+      normalized.notes = normalized.notes ?? normalized.statistics.notes ?? 0;
+      normalized.rank = normalized.rank ?? 1;
+      setUserProfile(normalized);
       setCurrentPage('user-profile');
     } catch (err) {
       console.error('Error fetching user profile:', err);
@@ -374,31 +426,69 @@ const ARMSPlatform = () => {
     }
   };
 
-  const handleUserSearch = useCallback(async (query) => {
+  const handleGlobalSearch = useCallback(async (query) => {
     setUserSearchQuery(query);
     if (query.trim() === '') {
       setSearchResults([]);
       return;
     }
-    
     try {
-      const searchData = await userAPI.searchUsers(query);
-      setSearchResults(searchData.data);
+      const { data } = await searchAPI.searchAll(query);
+      setSearchResults(data || []);
     } catch (err) {
       setError(handleAPIError(err));
     }
   }, []);
 
   // Debounced user search to prevent too many API calls
-  const debouncedUserSearch = useCallback(
-    (value) => {
-      setSearchQuery(value);
-      const handler = () => handleUserSearch(value);
-      const timeoutId = setTimeout(handler, 300);
-      return () => clearTimeout(timeoutId);
-    },
-    [handleUserSearch]
-  );
+  const debouncedGlobalSearch = useCallback((value) => {
+    setSearchQuery(value);
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    searchTimeoutRef.current = setTimeout(() => {
+      handleGlobalSearch(value);
+    }, 300);
+  }, [handleGlobalSearch]);
+
+  const handleGlobalSearchSelect = useCallback(async (item) => {
+    setSearchResults([]);
+    if (item.type === 'user') {
+      await handleUserSelect({ userId: item.id, name: item.name, email: item.email }, 'home');
+      return;
+    }
+    if (item.type === 'course') {
+      const course = courses.find(c => c.id === item.id);
+      setCurrentPage('dashboard');
+      if (course) {
+        await handleCourseSelect(course);
+      } else {
+        try {
+          const res = await courseAPI.getCourseById(item.id);
+          await handleCourseSelect(res.data);
+        } catch (err) {
+          setError(handleAPIError(err));
+        }
+      }
+      return;
+    }
+    if (item.type === 'material') {
+      // Navigate to its course page
+      const course = courses.find(c => c.id === item.courseId);
+      setCurrentPage('dashboard');
+      if (course) {
+        await handleCourseSelect(course);
+      } else {
+        try {
+          const res = await courseAPI.getCourseById(item.courseId);
+          await handleCourseSelect(res.data);
+        } catch (err) {
+          setError(handleAPIError(err));
+        }
+      }
+      return;
+    }
+  }, [courses]);
 
   const handleCourseSearch = useCallback((value) => {
     setCourseSearchQuery(value);
@@ -573,14 +663,14 @@ const ARMSPlatform = () => {
       
       <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
         <button 
-          onClick={() => setCurrentPage('home')}
+          onClick={() => { setIsInboxOpen(false); setCurrentPage('home'); }}
           className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${currentPage === 'home' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-700 hover:bg-gray-100'}`}
         >
           <Home size={20} />
           <span>Home</span>
         </button>
         <button 
-          onClick={() => setCurrentPage('dashboard')}
+          onClick={() => { setIsInboxOpen(false); setCurrentPage('dashboard'); }}
           className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${currentPage === 'dashboard' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-700 hover:bg-gray-100'}`}
         >
           <BookOpen size={20} />
@@ -607,7 +697,7 @@ const ARMSPlatform = () => {
           )}
         </button>
         <button 
-          onClick={() => setCurrentPage('rankings')}
+          onClick={() => { setIsInboxOpen(false); setCurrentPage('rankings'); }}
           className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${currentPage === 'rankings' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-700 hover:bg-gray-100'}`}
         >
           <Trophy size={20} />
@@ -615,7 +705,7 @@ const ARMSPlatform = () => {
         </button>
 
         <button 
-          onClick={() => setCurrentPage('notes')}
+          onClick={() => { setIsInboxOpen(false); setCurrentPage('notes'); }}
           className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${currentPage === 'notes' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-700 hover:bg-gray-100'}`}
         >
           <FileText size={20} />
@@ -643,7 +733,7 @@ const ARMSPlatform = () => {
                       onClick={() => {
                         setPinnedCourseIds(prev => {
                           const next = prev.filter(id => id !== course.id);
-                          try { localStorage.setItem('arms:pins', JSON.stringify(next)); } catch (e) {}
+                          try { if (user?.id) localStorage.setItem(getPinsKey(user.id), JSON.stringify(next)); } catch (e) {}
                           return next;
                         });
                       }}
@@ -679,7 +769,7 @@ const ARMSPlatform = () => {
                       onClick={() => {
                         setPinnedCourseIds(prev => {
                           const next = prev.includes(course.id) ? prev : [...prev, course.id];
-                          try { localStorage.setItem('arms:pins', JSON.stringify(next)); } catch (e) {}
+                          try { if (user?.id) localStorage.setItem(getPinsKey(user.id), JSON.stringify(next)); } catch (e) {}
                           return next;
                         });
                       }}
@@ -711,35 +801,47 @@ const ARMSPlatform = () => {
     </div>
   );
 
-  const Header = memo(() => (
+  const HeaderEl = (
     <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
       <div className="flex items-center space-x-4">
-        <div className="search-dropdown">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-            <input 
-              type="text" 
-              placeholder="Search courses, materials, or people..."
-              className="pl-10 pr-4 py-2 w-96 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              value={searchQuery}
-              onChange={(e) => debouncedUserSearch(e.target.value)}
-            />
-          </div>
+        <div className="search-dropdown relative">
+          <SearchInput
+            className="w-96"
+            placeholder="Search courses, materials, or people..."
+            value={searchQuery}
+            onChange={debouncedGlobalSearch}
+          />
           {searchResults.length > 0 && (
             <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-64 overflow-y-auto">
-              {searchResults.map(user => (
-                <div 
-                  key={user.id} 
+              {searchResults.map(item => (
+                <div
+                  key={`${item.type}-${item.id}`}
                   className="p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
-                  onClick={() => handleUserSelect({ userId: user.id, name: user.name }, 'home')}
+                  onClick={() => handleGlobalSearchSelect(item)}
                 >
                   <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-white font-semibold">
-                      {user.name.charAt(0)}
+                    <div className="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-white font-semibold text-xs uppercase">
+                      {item.type === 'user' ? (item.name || item.email || '?').charAt(0) : item.type.charAt(0)}
                     </div>
-                    <div>
-                      <p className="font-medium text-gray-900">{user.name}</p>
-                      <p className="text-sm text-gray-500">{user.email}</p>
+                    <div className="min-w-0">
+                      {item.type === 'user' && (
+                        <>
+                          <p className="font-medium text-gray-900 truncate">{item.name || item.email}</p>
+                          <p className="text-sm text-gray-500 truncate">{item.email}</p>
+                        </>
+                      )}
+                      {item.type === 'course' && (
+                        <>
+                          <p className="font-medium text-gray-900 truncate">{item.code}</p>
+                          <p className="text-sm text-gray-500 truncate">{item.title}</p>
+                        </>
+                      )}
+                      {item.type === 'material' && (
+                        <>
+                          <p className="font-medium text-gray-900 truncate">{item.title}</p>
+                          <p className="text-sm text-gray-500 truncate">Material</p>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -751,7 +853,7 @@ const ARMSPlatform = () => {
       
       <div className="flex items-center space-x-4">
         <button 
-          onClick={() => setShowUploadModal(true)}
+          onClick={() => { setIsInboxOpen(false); setShowUploadModal(true); }}
           className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors flex items-center space-x-2"
         >
           <Upload size={16} />
@@ -761,6 +863,7 @@ const ARMSPlatform = () => {
         <div 
           className="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-white font-semibold cursor-pointer hover:bg-indigo-700 transition-colors"
           onClick={async () => {
+            setIsInboxOpen(false);
             console.log('User object when clicking profile:', user);
             setSelectedUser({ userId: user.id, name: user.name });
             setProfileBackTo('home');
@@ -770,7 +873,28 @@ const ARMSPlatform = () => {
               console.log('Fetching own profile for userId:', user.id);
               const profileData = await userAPI.getUserProfile(user.id);
               console.log('Own profile data received:', profileData.data);
-              setUserProfile(profileData.data);
+              const p = profileData.data || {};
+              const normalized = {
+                id: p.id || user.id,
+                name: p.name || user.name || '',
+                email: p.email || user.email || '',
+                role: p.role || 'STUDENT',
+                statistics: p.statistics || { notes: 0, uploads: 0, downloads: 0, assignments: 0, code: 0, presentations: 0, documents: 0, other: 0 },
+                materialsByCourse: p.materialsByCourse || {},
+                recentCourses: p.recentCourses || [],
+                pinnedCourses: p.pinnedCourses || [],
+                materials: p.materials || [],
+                badges: p.badges || [],
+                achievements: p.achievements || [],
+                preferences: p.preferences || {},
+                social: p.social || {},
+                settings: p.settings || {},
+                totalUploads: p.totalUploads ?? p.statistics?.uploads ?? 0,
+              };
+              normalized.uploads = normalized.uploads ?? normalized.statistics.uploads ?? 0;
+              normalized.downloads = normalized.downloads ?? normalized.statistics.downloads ?? 0;
+              normalized.notes = normalized.notes ?? normalized.statistics.notes ?? 0;
+              setUserProfile(normalized);
               setCurrentPage('user-profile');
             } catch (err) {
               console.error('Error fetching own profile:', err);
@@ -784,7 +908,7 @@ const ARMSPlatform = () => {
         </div>
       </div>
     </div>
-  ));
+  );
 
   const InboxView = () => (
     <div className="p-6 space-y-6">
@@ -834,37 +958,21 @@ const ARMSPlatform = () => {
 
   // HomePage component is imported from './components/HomePage'
 
-  const Dashboard = memo(() => {
-
-    const applyCourseFilter = () => {
-      if (selectedCourses.length === 0) {
-        setFilteredCourses(courses);
-      } else {
-        const filtered = courses.filter(course => selectedCourses.includes(course.id));
-        setFilteredCourses(filtered);
-      }
-      setShowFilterModal(false);
-    };
-
-    return (
+  const DashboardEl = (
       <div className="p-6 space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold text-gray-900">
             {selectedCourses.length > 0 ? `Selected Courses (${selectedCourses.length})` : 'Available Courses'}
           </h1>
           <div className="flex items-center space-x-3">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
-              <input 
-                type="text" 
-                placeholder="Search courses..."
-                className="pl-10 pr-4 py-2 w-64 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                value={courseSearchQuery}
-                onChange={(e) => handleCourseSearch(e.target.value)}
-              />
-            </div>
+            <SearchInput
+              className="w-64"
+              placeholder="Search courses..."
+              value={courseSearchQuery}
+              onChange={handleCourseSearch}
+            />
             <button 
-              onClick={() => setShowFilterModal(true)}
+              onClick={() => { setIsInboxOpen(false); setShowFilterModal(true); }}
               className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
             >
               <Filter size={16} />
@@ -928,9 +1036,8 @@ const ARMSPlatform = () => {
         )}
       </div>
     );
-  });
 
-  const CourseDetail = memo(() => (
+  const CourseDetailEl = (
     <div className="p-6 space-y-6">
       <div className="flex items-center space-x-4">
         <button 
@@ -1022,16 +1129,12 @@ const ARMSPlatform = () => {
               <p className="text-gray-600">Complete list of materials for this course</p>
             </div>
             <div className="flex items-center space-x-3">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
-                <input 
-                  type="text" 
-                  placeholder="Search materials..."
-                  className="pl-10 pr-4 py-2 w-64 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  value={materialSearchQuery}
-                  onChange={(e) => handleMaterialSearch(e.target.value)}
-                />
-              </div>
+              <SearchInput
+                className="w-64"
+                placeholder="Search materials..."
+                value={materialSearchQuery}
+                onChange={handleMaterialSearch}
+              />
               <select 
                 className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
                 value={selectedMaterialType}
@@ -1120,7 +1223,7 @@ const ARMSPlatform = () => {
         )}
       </div>
     </div>
-  ));
+  );
 
   const Rankings = () => (
     <div className="p-6 space-y-6">
@@ -1211,7 +1314,25 @@ const ARMSPlatform = () => {
     );
   };
 
-  const UserProfile = () => (
+  const UserProfile = () => {
+    const stats = userProfile?.statistics || {};
+    const safeStats = {
+      notes: stats.notes ?? 0,
+      assignments: stats.assignments ?? 0,
+      code: stats.code ?? 0,
+      presentations: stats.presentations ?? 0,
+      documents: stats.documents ?? 0,
+      other: stats.other ?? 0,
+      uploads: stats.uploads ?? 0,
+      downloads: stats.downloads ?? 0,
+    };
+    const materialsByCourse = userProfile?.materialsByCourse || {};
+    const totalUploads = userProfile?.totalUploads ?? safeStats.uploads ?? 0;
+    const displayName = userProfile?.name || 'Unknown';
+    const displayRole = (userProfile?.role || 'STUDENT').toLowerCase();
+    const displayEmail = userProfile?.email || '';
+
+    return (
     <div className="p-6 space-y-6">
       <div className="flex items-center space-x-4">
         <button 
@@ -1231,7 +1352,7 @@ const ARMSPlatform = () => {
           ← Back to {profileBackTo === 'course' ? 'course' : profileBackTo === 'home' ? 'home' : 'rankings'}
         </button>
         <h1 className="text-3xl font-bold text-gray-900">
-          {selectedUser && selectedUser.userId === user.id ? 'My Profile' : `${userProfile?.name}'s Profile`}
+          {selectedUser && selectedUser.userId === user.id ? 'My Profile' : `${displayName}'s Profile`}
         </h1>
       </div>
       
@@ -1257,15 +1378,15 @@ const ARMSPlatform = () => {
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div className="flex items-center space-x-6">
               <div className="w-20 h-20 bg-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-2xl">
-                {userProfile.name.charAt(0)}
+                {displayName.charAt(0)}
               </div>
               <div className="flex-1">
-                <h2 className="text-2xl font-bold text-gray-900">{userProfile.name}</h2>
-                <p className="text-gray-600">{userProfile.email}</p>
-                <p className="text-sm text-gray-500 capitalize">{userProfile.role.toLowerCase()}</p>
+                <h2 className="text-2xl font-bold text-gray-900">{displayName}</h2>
+                <p className="text-gray-600">{displayEmail}</p>
+                <p className="text-sm text-gray-500 capitalize">{displayRole}</p>
               </div>
               <div className="text-right">
-                <div className="text-3xl font-bold text-indigo-600">{userProfile.totalUploads}</div>
+                <div className="text-3xl font-bold text-indigo-600">{totalUploads}</div>
                 <div className="text-sm text-gray-500">Total Uploads</div>
               </div>
             </div>
@@ -1276,27 +1397,27 @@ const ARMSPlatform = () => {
             <h3 className="text-xl font-semibold text-gray-900 mb-4">Upload Statistics</h3>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
               <div className="text-center p-4 bg-blue-50 rounded-lg">
-                <div className="text-2xl font-bold text-blue-600">{userProfile.statistics.notes}</div>
+                <div className="text-2xl font-bold text-blue-600">{safeStats.notes}</div>
                 <div className="text-sm text-blue-800">Notes</div>
               </div>
               <div className="text-center p-4 bg-green-50 rounded-lg">
-                <div className="text-2xl font-bold text-green-600">{userProfile.statistics.assignments}</div>
+                <div className="text-2xl font-bold text-green-600">{safeStats.assignments}</div>
                 <div className="text-sm text-green-800">Assignments</div>
               </div>
               <div className="text-center p-4 bg-purple-50 rounded-lg">
-                <div className="text-2xl font-bold text-purple-600">{userProfile.statistics.code}</div>
+                <div className="text-2xl font-bold text-purple-600">{safeStats.code}</div>
                 <div className="text-sm text-purple-800">Code</div>
               </div>
               <div className="text-center p-4 bg-orange-50 rounded-lg">
-                <div className="text-2xl font-bold text-orange-600">{userProfile.statistics.presentations}</div>
+                <div className="text-2xl font-bold text-orange-600">{safeStats.presentations}</div>
                 <div className="text-sm text-orange-800">Presentations</div>
               </div>
               <div className="text-center p-4 bg-gray-50 rounded-lg">
-                <div className="text-2xl font-bold text-gray-600">{userProfile.statistics.documents}</div>
+                <div className="text-2xl font-bold text-gray-600">{safeStats.documents}</div>
                 <div className="text-sm text-gray-800">Documents</div>
               </div>
               <div className="text-center p-4 bg-indigo-50 rounded-lg">
-                <div className="text-2xl font-bold text-indigo-600">{userProfile.statistics.other}</div>
+                <div className="text-2xl font-bold text-indigo-600">{safeStats.other}</div>
                 <div className="text-sm text-indigo-800">Other</div>
               </div>
             </div>
@@ -1309,7 +1430,7 @@ const ARMSPlatform = () => {
               <p className="text-gray-600">Materials uploaded to each course</p>
             </div>
             <div className="divide-y divide-gray-200">
-              {Object.entries(userProfile.materialsByCourse).map(([courseName, materials]) => (
+              {Object.entries(materialsByCourse).map(([courseName, materials]) => (
                 <div key={courseName} className="p-6">
                   <h4 className="text-lg font-semibold text-gray-900 mb-3">{courseName}</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1359,7 +1480,7 @@ const ARMSPlatform = () => {
                   </div>
                 </div>
               ))}
-              {Object.keys(userProfile.materialsByCourse).length === 0 && (
+              {Object.keys(materialsByCourse).length === 0 && (
                 <div className="p-8 text-center text-gray-500">
                   No materials uploaded yet.
                 </div>
@@ -1373,9 +1494,10 @@ const ARMSPlatform = () => {
         </div>
       )}
     </div>
-  );
+    );
+  };
 
-  const UploadModal = () => (
+  const UploadModalEl = (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl max-w-md w-full p-6">
         <div className="flex items-center justify-between mb-4">
@@ -1394,6 +1516,17 @@ const ARMSPlatform = () => {
         
         <div className="space-y-4">
           <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Find Course</label>
+            <div className="relative">
+              <SearchInput
+                className="w-full"
+                placeholder="Search courses..."
+                value={uploadCourseQuery}
+                onChange={setUploadCourseQuery}
+              />
+            </div>
+          </div>
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Course</label>
             <select 
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
@@ -1401,9 +1534,19 @@ const ARMSPlatform = () => {
               onChange={(e) => setUploadForm(prev => ({ ...prev, courseId: e.target.value }))}
             >
               <option value="">Select a course</option>
-              {courses.map(course => (
-                <option key={course.id} value={course.id}>{course.code} - {course.title}</option>
-              ))}
+              {courses
+                .filter(course => {
+                  const q = (uploadCourseQuery || '').toLowerCase();
+                  if (!q) return true;
+                  return (
+                    course.code.toLowerCase().includes(q) ||
+                    course.title.toLowerCase().includes(q) ||
+                    (course.description || '').toLowerCase().includes(q)
+                  );
+                })
+                .map(course => (
+                  <option key={course.id} value={course.id}>{course.code} - {course.title}</option>
+                ))}
             </select>
           </div>
           
@@ -1484,27 +1627,23 @@ const ARMSPlatform = () => {
     </div>
   );
 
-  const FilterModal = memo(() => (
+  const FilterModalEl = (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl max-w-md w-full p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold text-gray-900">Select Courses</h2>
-          <button onClick={() => setShowFilterModal(false)}>
+          <button onClick={() => { setShowFilterModal(false); }}>
             <X className="text-gray-400 hover:text-gray-600" size={24} />
           </button>
         </div>
         
         <div className="mb-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
-            <input 
-              type="text" 
-              placeholder="Search courses..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-              value={courseSearchQuery}
-              onChange={(e) => handleCourseSearch(e.target.value)}
-            />
-          </div>
+          <SearchInput
+            className="w-full"
+            placeholder="Search courses..."
+            value={courseSearchQuery}
+            onChange={handleCourseSearch}
+          />
         </div>
         
         <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -1561,7 +1700,7 @@ const ARMSPlatform = () => {
         </div>
       </div>
     </div>
-  ));
+  );
 
   const CreateNewsModal = () => {
     const handleCreateNews = async () => {
@@ -1672,13 +1811,13 @@ const ARMSPlatform = () => {
     <div className="h-screen flex bg-gray-50">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <Header />
+        {HeaderEl}
         <div className="flex-1 overflow-y-auto">
           {currentPage === 'home' && <HomePage user={user} setShowCreateNews={setShowCreateNews} error={error} />}
           {currentPage === 'dashboard' && selectedCourse ? (
-            <CourseDetail />
+            CourseDetailEl
           ) : currentPage === 'dashboard' ? (
-            <Dashboard />
+            DashboardEl
           ) : null}
           {currentPage === 'rankings' && <Rankings />}
           {currentPage === 'notes' && <NotesPage />}
@@ -1686,8 +1825,8 @@ const ARMSPlatform = () => {
         </div>
       </div>
       
-      {showUploadModal && <UploadModal />}
-      {showFilterModal && <FilterModal />}
+      {showUploadModal && UploadModalEl}
+      {showFilterModal && FilterModalEl}
       {showCreateNews && <CreateNewsModal />}
       <NotificationSidebar 
         isOpen={isInboxOpen}

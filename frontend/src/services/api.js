@@ -1,4 +1,11 @@
 import axios from 'axios';
+import { authService as fbAuthSvc } from './firebase/auth';
+import { courseService as fbCourseSvc } from './firebase/courses';
+import { materialService as fbMaterialSvc } from './firebase/materials';
+import { newsService as fbNewsSvc } from './firebase/news';
+import { userService as fbUserSvc } from './firebase/users';
+
+const USE_FIREBASE = String(process.env.REACT_APP_USE_FIREBASE ?? 'true').toLowerCase() === 'true';
 
 // Create axios instance with default configuration
 const api = axios.create({
@@ -38,63 +45,116 @@ api.interceptors.response.use(
 
 // Authentication API
 export const authAPI = {
-  login: (credentials) => api.post('/auth/login', credentials),
-  register: (userData) => api.post('/auth/register', userData),
-  googleLogin: (idToken) => api.post('/auth/google', { idToken }),
-  getCurrentUser: () => api.get('/auth/me'),
+  login: async (credentials) => {
+    if (USE_FIREBASE) {
+      const user = await fbAuthSvc.login(credentials);
+      return { data: { user, accessToken: (await window?.firebaseToken) || '' } };
+    }
+    return api.post('/auth/login', credentials);
+  },
+  register: async (userData) => {
+    if (USE_FIREBASE) {
+      const user = await fbAuthSvc.register(userData);
+      return { data: { user, accessToken: (await window?.firebaseToken) || '' } };
+    }
+    return api.post('/auth/register', userData);
+  },
+  googleLogin: async (idToken) => {
+    if (USE_FIREBASE) {
+      // For now rely on App.js Google One Tap -> backend flow not used; skip
+      throw { response: { data: { error: 'Google login via backend disabled. Use email/password for demo.' } } };
+    }
+    return api.post('/auth/google', { idToken });
+  },
+  getCurrentUser: async () => {
+    if (USE_FIREBASE) {
+      const user = await fbAuthSvc.getCurrentUser();
+      return { data: user };
+    }
+    return api.get('/auth/me');
+  },
 };
 
 // Course API
 export const courseAPI = {
-  getAllCourses: () => api.get('/courses'),
-  searchCourses: (query) => api.get(`/courses?q=${encodeURIComponent(query)}`),
-  getCourseById: (id) => api.get(`/courses/${id}`),
-  getCourseMaterials: (courseId) => api.get(`/courses/${courseId}/materials`),
+  getAllCourses: async () => USE_FIREBASE ? { data: await fbCourseSvc.getAllCourses() } : api.get('/courses'),
+  searchCourses: async (query) => USE_FIREBASE ? { data: await fbCourseSvc.searchCourses(query) } : api.get(`/courses?q=${encodeURIComponent(query)}`),
+  getCourseById: async (id) => USE_FIREBASE ? { data: await fbCourseSvc.getCourseById(id) } : api.get(`/courses/${id}`),
+  getCourseMaterials: async (courseId) => USE_FIREBASE ? { data: await fbMaterialSvc.getMaterialsByCourse(courseId) } : api.get(`/courses/${courseId}/materials`),
+  // Recently visited courses helpers (used by HomePage)
+  addRecentCourse: async (userId, courseId) => USE_FIREBASE ? { data: await fbCourseSvc.addRecentCourse(userId, courseId) } : api.post(`/users/${userId}/recent-courses`, { courseId }),
+  getRecentCourses: async (userId) => USE_FIREBASE ? { data: await fbCourseSvc.getRecentCourses(userId) } : api.get(`/users/${userId}/recent-courses`),
 };
 
 // Material API
 export const materialAPI = {
-  uploadMaterial: (courseId, formData) => api.post(`/courses/${courseId}/materials`, formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-    timeout: 30000, // Increase timeout for file uploads
-    onUploadProgress: (progressEvent) => {
-      const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-      console.log('Upload progress:', percentCompleted);
-    },
-  }),
-  getMaterialsByCourse: (courseId) => api.get(`/courses/${courseId}/materials`),
-  deleteMaterial: (id) => api.delete(`/materials/${id}`),
+  uploadMaterial: async (courseId, formData) => {
+    if (USE_FIREBASE) {
+      const file = formData.get('file');
+      const meta = { title: formData.get('title'), description: '', uploaderId: JSON.parse(localStorage.getItem('user') || '{}').id };
+      const res = await fbMaterialSvc.uploadMaterial(courseId, file, meta);
+      return { data: res };
+    }
+    return api.post(`/courses/${courseId}/materials`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 30000,
+      onUploadProgress: (progressEvent) => {
+        const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+        console.log('Upload progress:', percentCompleted);
+      },
+    });
+  },
+  getMaterialsByCourse: async (courseId) => USE_FIREBASE ? { data: await fbMaterialSvc.getMaterialsByCourse(courseId) } : api.get(`/courses/${courseId}/materials`),
+  deleteMaterial: async (id) => USE_FIREBASE ? { data: await fbMaterialSvc.deleteMaterial(id) } : api.delete(`/materials/${id}`),
 };
 
 // Rankings API
 export const rankingsAPI = {
-  getTopUploaders: (limit = 50) => api.get(`/rankings?limit=${limit}`),
+  getTopUploaders: async (limit = 50) => USE_FIREBASE ? { data: await fbUserSvc.getTopUploaders(limit) } : api.get(`/rankings?limit=${limit}`),
 };
 
 // News API
 export const newsAPI = {
-  getAllNews: (page = 0, size = 10, search = null, type = null) => {
-    const params = new URLSearchParams({ page, size });
-    if (search) params.append('search', search);
-    if (type) params.append('type', type);
-    return api.get(`/news?${params.toString()}`);
-  },
-  getRecentNews: (limit = 5) => api.get(`/news/recent?limit=${limit}`),
-  createNews: (newsData) => api.post('/news', newsData),
-  updateNews: (id, newsData) => api.put(`/news/${id}`, newsData),
-  deleteNews: (id) => api.delete(`/news/${id}`)
+  getAllNews: async (page = 0, size = 10, search = null, type = null) => USE_FIREBASE ? { data: await fbNewsSvc.getAllNews(page, size, search, type) } : (() => { const params = new URLSearchParams({ page, size }); if (search) params.append('search', search); if (type) params.append('type', type); return api.get(`/news?${params.toString()}`); })(),
+  getRecentNews: async (limit = 5) => USE_FIREBASE ? { data: await fbNewsSvc.getRecentNews(limit) } : api.get(`/news/recent?limit=${limit}`),
+  createNews: async (newsData) => USE_FIREBASE ? { data: await fbNewsSvc.createNews(newsData) } : api.post('/news', newsData),
+  updateNews: async (id, newsData) => USE_FIREBASE ? { data: await fbNewsSvc.updateNews?.(id, newsData) } : api.put(`/news/${id}`, newsData),
+  deleteNews: async (id) => USE_FIREBASE ? { data: await fbNewsSvc.deleteNews?.(id) } : api.delete(`/news/${id}`),
 };
 
 // User API
 export const userAPI = {
-  getUserProfile: (id) => api.get(`/users/${id}`),
-  searchUsers: (query) => api.get(`/users/search?query=${encodeURIComponent(query)}`)
+  getUserProfile: async (id) => USE_FIREBASE ? { data: await fbUserSvc.getUserById(id) } : api.get(`/users/${id}`),
+  searchUsers: async (query) => USE_FIREBASE ? { data: await fbUserSvc.searchUsers(query) } : api.get(`/users/search?query=${encodeURIComponent(query)}`),
+};
+
+// Aggregated Search API
+export const searchAPI = {
+  searchAll: async (query) => {
+    if (USE_FIREBASE) {
+      const [users, courses, materials] = await Promise.all([
+        fbUserSvc.searchUsers(query),
+        fbCourseSvc.searchCourses(query),
+        fbMaterialSvc.searchMaterials(query),
+      ]);
+      const packed = [
+        ...users.map(u => ({ type: 'user', id: u.id, name: u.name || u.email || '', email: u.email || '' })),
+        ...courses.map(c => ({ type: 'course', id: c.id, code: c.code || '', title: c.title || '' })),
+        ...materials.map(m => ({ type: 'material', id: m.id, title: m.title || '', courseId: m.courseId || '', typeLabel: m.type || '' })),
+      ];
+      return { data: packed };
+    }
+    // TODO: implement backend aggregated search if needed
+    return { data: [] };
+  }
 };
 
 // File serving - direct access to uploaded files
 export const getFileUrl = (path) => {
+  if (USE_FIREBASE) {
+    // In Firebase path, URLs are returned with material items; just return path for now
+    return path;
+  }
   const baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:8080';
   return `${baseUrl}${path}`;
 };

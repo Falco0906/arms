@@ -6,7 +6,7 @@ const NotificationSidebar = ({ isOpen, onClose, items, onMarkAllRead, onClearAll
 
       {/* Panel (sits to the right of main sidebar w-64) */}
       <div
-        className={`fixed top-0 bottom-0 left-64 w-96 bg-white border-l border-gray-200 transform transition-transform z-10 ${
+        className={`notifications-panel fixed top-0 bottom-0 left-64 w-96 bg-white border-l border-gray-200 transform transition-transform z-10 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         } pointer-events-auto`}
         role="dialog"

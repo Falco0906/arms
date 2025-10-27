@@ -17,6 +17,15 @@ const UserProfile = ({ user, onBack }) => {
   const [selectedCourse, setSelectedCourse] = useState('all');
   const [courseStats, setCourseStats] = useState({});
 
+  // Safe user object with defaults
+  const safeUser = {
+    name: user?.name || 'Unknown',
+    role: user?.role || 'STUDENT',
+    uploads: user?.uploads || 0,
+    rank: user?.rank || 1,
+    ...(user || {})
+  };
+
   // Mock data - in real app, this would come from API
   useEffect(() => {
     const mockMaterials = [
@@ -94,7 +103,7 @@ const UserProfile = ({ user, onBack }) => {
     ? materials 
     : materials.filter(m => m.course === selectedCourse);
 
-  const courses = Object.keys(courseStats);
+  const courses = Object.keys(courseStats || {});
 
   return (
     <div className="p-6 space-y-6">
@@ -108,11 +117,11 @@ const UserProfile = ({ user, onBack }) => {
         </button>
         <div className="flex items-center space-x-4">
           <div className="w-16 h-16 bg-indigo-600 rounded-full flex items-center justify-center text-white text-2xl font-bold">
-            {user.name.charAt(0)}
+            {safeUser.name.charAt(0)}
           </div>
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">{user.name}</h1>
-            <p className="text-gray-600">{user.role} • {user.uploads} total uploads</p>
+            <h1 className="text-3xl font-bold text-gray-900">{safeUser.name}</h1>
+            <p className="text-gray-600">{safeUser.role} • {safeUser.uploads} total uploads</p>
           </div>
         </div>
       </div>
@@ -126,7 +135,7 @@ const UserProfile = ({ user, onBack }) => {
             </div>
             <div>
               <p className="text-sm text-gray-500">Total Uploads</p>
-              <p className="text-2xl font-bold text-gray-900">{user.uploads}</p>
+              <p className="text-2xl font-bold text-gray-900">{safeUser.uploads}</p>
             </div>
           </div>
         </div>
@@ -139,7 +148,7 @@ const UserProfile = ({ user, onBack }) => {
             <div>
               <p className="text-sm text-gray-500">Total Downloads</p>
               <p className="text-2xl font-bold text-gray-900">
-                {Object.values(courseStats).reduce((sum, stat) => sum + stat.totalDownloads, 0).toLocaleString()}
+                {Object.values(courseStats || {}).reduce((sum, stat) => sum + (stat?.totalDownloads || 0), 0).toLocaleString()}
               </p>
             </div>
           </div>
@@ -164,7 +173,7 @@ const UserProfile = ({ user, onBack }) => {
             </div>
             <div>
               <p className="text-sm text-gray-500">Ranking</p>
-              <p className="text-2xl font-bold text-gray-900">#{user.rank || 1}</p>
+              <p className="text-2xl font-bold text-gray-900">#{safeUser.rank}</p>
             </div>
           </div>
         </div>
@@ -185,7 +194,7 @@ const UserProfile = ({ user, onBack }) => {
                   <span className="text-indigo-600 font-bold text-lg">{course.substring(0, 2)}</span>
                 </div>
                 <h3 className="font-semibold text-gray-900 mb-1">{course}</h3>
-                <p className="text-2xl font-bold text-indigo-600">{courseStats[course].count}</p>
+                <p className="text-2xl font-bold text-indigo-600">{courseStats[course]?.count || 0}</p>
                 <p className="text-sm text-gray-500">uploads</p>
               </div>
             ))}
