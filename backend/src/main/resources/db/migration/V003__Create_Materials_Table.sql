@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS materials (
 );
 
 -- Optimize BYTEA storage for better performance
-ALTER TABLE materials ALTER COLUMN content SET STORAGE EXTERNAL;
+-- ALTER TABLE materials ALTER COLUMN content SET STORAGE EXTERNAL;
 
 -- Create indexes for better query performance
 CREATE INDEX idx_materials_course_id ON materials(course_id);
