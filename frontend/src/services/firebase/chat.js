@@ -61,7 +61,30 @@ export const chatService = {
       userName,
       text: text.trim(),
       createdAt: serverTimestamp(),
+      deletedFor: [], // Track who deleted this message
     });
     await updateDoc(doc(db, 'conversations', conversationId), { updatedAt: serverTimestamp() });
+  },
+  deleteMessageForMe: async (conversationId, messageId, userId) => {
+    if (!db) throw new Error('Firebase is not configured for database');
+    const messageRef = doc(db, 'conversations', conversationId, 'messages', messageId);
+    const messageDoc = await getDoc(messageRef);
+    if (!messageDoc.exists()) return;
+    const deletedFor = messageDoc.data().deletedFor || [];
+    if (!deletedFor.includes(userId)) {
+      await updateDoc(messageRef, { deletedFor: [...deletedFor, userId] });
+    }
+  },
+  deleteMessageForEveryone: async (conversationId, messageId) => {
+    if (!db) throw new Error('Firebase is not configured for database');
+    await deleteDoc(doc(db, 'conversations', conversationId, 'messages', messageId));
+  },
+  deleteConversation: async (conversationId) => {
+    if (!db) throw new Error('Firebase is not configured for database');
+    // Delete all messages first
+    const messagesSnap = await getDocs(collection(db, 'conversations', conversationId, 'messages'));
+    await Promise.all(messagesSnap.docs.map(d => deleteDoc(d.ref)));
+    // Delete conversation
+    await deleteDoc(doc(db, 'conversations', conversationId));
   },
 };

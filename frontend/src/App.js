@@ -949,9 +949,26 @@ const ARMSPlatform = () => {
               {conversations.map(c => {
                 const other = (c.participants || []).find(p => p.id !== (user?.id || '')) || { name: 'Conversation' };
                 return (
-                  <div key={c.id} className={`p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-800 ${activeConversation?.id === c.id ? 'bg-gray-100 dark:bg-neutral-800' : ''}`} onClick={() => openConversation(c)}>
-                    <div className="font-medium text-gray-800 dark:text-gray-200 text-sm">{other.name}</div>
-                    <div className="text-xs text-gray-400 dark:text-gray-500">{c.updatedAt?.toDate ? c.updatedAt.toDate().toLocaleString() : ''}</div>
+                  <div key={c.id} className={`group p-3 hover:bg-gray-50 dark:hover:bg-neutral-800 ${activeConversation?.id === c.id ? 'bg-gray-100 dark:bg-neutral-800' : ''}`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 cursor-pointer" onClick={() => openConversation(c)}>
+                        <div className="font-medium text-gray-800 dark:text-gray-200 text-sm">{other.name}</div>
+                        <div className="text-xs text-gray-400 dark:text-gray-500">{c.updatedAt?.toDate ? c.updatedAt.toDate().toLocaleString() : ''}</div>
+                      </div>
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          if (window.confirm('Delete this conversation?')) {
+                            await chatAPI.deleteConversation(c.id);
+                            if (activeConversation?.id === c.id) setActiveConversation(null);
+                          }
+                        }}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400"
+                        title="Delete conversation"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   </div>
                 );
               })}
@@ -960,13 +977,37 @@ const ARMSPlatform = () => {
               )}
             </div>
           </div>
-          <div className="col-span-2 border border-gray-100 dark:border-neutral-800 rounded-lg flex flex-col">
-            <div className="flex-1 overflow-y-auto p-3 space-y-3">
+          <div className="col-span-2 border border-gray-100 dark:border-neutral-800 rounded-lg flex flex-col max-h-[60vh]">
+            <div className="flex-1 overflow-y-auto p-3 space-y-3 min-h-0">
               {activeConversation ? (
-                dmMessages.map(m => (
-                  <div key={m.id} className={`text-sm ${m.userId === (user?.id) ? 'text-right' : 'text-left'}`}>
+                dmMessages
+                  .filter(m => !(m.deletedFor || []).includes(user?.id))
+                  .map(m => (
+                  <div key={m.id} className={`group text-sm ${m.userId === (user?.id) ? 'text-right' : 'text-left'}`}>
                     <div className="text-xs text-gray-400 dark:text-gray-500">{m.userId === (user?.id) ? 'You' : (m.userName || 'User')} · {m.createdAt?.toDate ? m.createdAt.toDate().toLocaleString() : ''}</div>
-                    <div className={`inline-block px-3 py-2 rounded-lg ${m.userId === (user?.id) ? 'bg-neutral-700 text-white' : 'bg-gray-100 dark:bg-neutral-700 text-gray-800 dark:text-gray-200'}`}>{m.text}</div>
+                    <div className="inline-flex items-center gap-2">
+                      <div className={`inline-block px-3 py-2 rounded-lg ${m.userId === (user?.id) ? 'bg-neutral-700 text-white' : 'bg-gray-100 dark:bg-neutral-700 text-gray-800 dark:text-gray-200'}`}>
+                        {m.text}
+                      </div>
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                        <button
+                          onClick={() => chatAPI.deleteMessageForMe(activeConversation.id, m.id, user?.id)}
+                          className="text-xs text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400"
+                          title="Delete for me"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                        {m.userId === user?.id && (
+                          <button
+                            onClick={() => chatAPI.deleteMessageForEveryone(activeConversation.id, m.id)}
+                            className="text-xs text-gray-400 hover:text-red-600 dark:text-gray-500 dark:hover:text-red-500"
+                            title="Delete for everyone"
+                          >
+                            <X size={14} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 ))
               ) : (
@@ -1452,7 +1493,7 @@ const ARMSPlatform = () => {
   const DashboardEl = (
       <div className="p-6 space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-gray-900">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
             {selectedCourses.length > 0 ? `Selected Courses (${selectedCourses.length})` : 'Available Courses'}
           </h1>
           <div className="flex items-center space-x-3">
