@@ -225,6 +225,30 @@ export const chatAPI = {
     if (!USE_FIREBASE) return { data: null };
     return fbChatSvc.sendDM(conversationId, payload);
   },
+  markConversationAsRead: async (conversationId, userId) => {
+    if (!USE_FIREBASE) return { data: null };
+    return fbChatSvc.markConversationAsRead(conversationId, userId);
+  },
+  deleteMessageForMe: async (conversationId, messageId, userId) => {
+    if (!USE_FIREBASE) return { data: null };
+    return fbChatSvc.deleteMessageForMe(conversationId, messageId, userId);
+  },
+  deleteMessageForEveryone: async (conversationId, messageId) => {
+    if (!USE_FIREBASE) return { data: null };
+    return fbChatSvc.deleteMessageForEveryone(conversationId, messageId);
+  },
+  deleteConversation: async (conversationId) => {
+    if (!USE_FIREBASE) return { data: null };
+    return fbChatSvc.deleteConversation(conversationId);
+  },
+  deleteCourseMessageForMe: async (courseId, messageId, userId) => {
+    if (!USE_FIREBASE) return { data: null };
+    return fbChatSvc.deleteCourseMessageForMe(courseId, messageId, userId);
+  },
+  deleteCourseMessageForEveryone: async (courseId, messageId) => {
+    if (!USE_FIREBASE) return { data: null };
+    return fbChatSvc.deleteCourseMessageForEveryone(courseId, messageId);
+  },
 };
 
 // File serving - direct access to uploaded files
