@@ -854,31 +854,27 @@ const ARMSPlatform = () => {
   const startDMWithUser = async (targetUser) => {
     if (!user?.id || !targetUser?.id) return;
     try {
-      // Create or get conversation
-      const convId = [user.id, targetUser.id].sort().join('_');
-      const newConv = {
-        id: convId,
-        participants: [user.id, targetUser.id],
-        participantNames: {
-          [user.id]: user.name || user.email,
-          [targetUser.id]: targetUser.name || targetUser.email
-        },
-        lastMessage: '',
-        lastMessageTime: new Date()
+      // Create or get conversation from Firebase
+      const currentUserData = {
+        id: user.id,
+        name: user.name || user.displayName || user.email,
+        email: user.email
+      };
+      const targetUserData = {
+        id: targetUser.id,
+        name: targetUser.name || targetUser.displayName || targetUser.email,
+        email: targetUser.email
       };
       
-      // Check if conversation already exists
-      const existingConv = conversations.find(c => c.id === convId);
-      if (!existingConv) {
-        setConversations(prev => [newConv, ...prev]);
-      }
+      const conversation = await chatAPI.getOrCreateDMConversation(currentUserData, targetUserData);
       
       // Open the conversation
-      openConversation(existingConv || newConv);
+      openConversation(conversation);
       setChatUserQuery('');
       setChatUserResults([]);
     } catch (err) {
       console.error('Failed to start DM:', err);
+      setError('Failed to start conversation. Please try again.');
     }
   };
 
