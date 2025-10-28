@@ -851,6 +851,37 @@ const ARMSPlatform = () => {
     }, 300);
   }, []);
 
+  const startDMWithUser = async (targetUser) => {
+    if (!user?.id || !targetUser?.id) return;
+    try {
+      // Create or get conversation
+      const convId = [user.id, targetUser.id].sort().join('_');
+      const newConv = {
+        id: convId,
+        participants: [user.id, targetUser.id],
+        participantNames: {
+          [user.id]: user.name || user.email,
+          [targetUser.id]: targetUser.name || targetUser.email
+        },
+        lastMessage: '',
+        lastMessageTime: new Date()
+      };
+      
+      // Check if conversation already exists
+      const existingConv = conversations.find(c => c.id === convId);
+      if (!existingConv) {
+        setConversations(prev => [newConv, ...prev]);
+      }
+      
+      // Open the conversation
+      openConversation(existingConv || newConv);
+      setChatUserQuery('');
+      setChatUserResults([]);
+    } catch (err) {
+      console.error('Failed to start DM:', err);
+    }
+  };
+
   // Overlays defined after handlers to avoid temporal dead zone
   const CourseChatEl = (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
