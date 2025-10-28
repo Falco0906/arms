@@ -15,7 +15,59 @@ The fastest path to deploy your ARMS Platform.
    - Verify Firebase variables are filled in
    - If not, copy from `.env.example` and add your Firebase config
 
-## Option A: Deploy to Vercel (Recommended)
+## Option A: Deploy to Render (Git-Based)
+
+**Perfect for GitHub deployment - No CLI needed!**
+
+### Step 1: Push to GitHub (Already Done ✅)
+
+Your code is already on GitHub at `Falco0906/arms` on branch `main2`
+
+### Step 2: Sign Up on Render
+
+1. Go to https://render.com
+2. Click "Get Started" or "Sign Up"
+3. Sign up with GitHub (recommended)
+4. Authorize Render to access your repositories
+
+### Step 3: Create New Static Site
+
+1. Click **"New +"** → **"Static Site"**
+2. Connect repository: `Falco0906/arms`
+3. Configure:
+   - **Name**: `arms-platform`
+   - **Branch**: `main2`
+   - **Root Directory**: `frontend`
+   - **Build Command**: `npm install && npm run build`
+   - **Publish Directory**: `frontend/build`
+
+### Step 4: Add Environment Variables
+
+In the Environment section, add all variables from your `.env`:
+
+```
+REACT_APP_USE_FIREBASE = true
+REACT_APP_FIREBASE_API_KEY = your_key
+REACT_APP_FIREBASE_AUTH_DOMAIN = your_domain
+REACT_APP_FIREBASE_PROJECT_ID = your_project_id
+REACT_APP_FIREBASE_STORAGE_BUCKET = your_bucket
+REACT_APP_FIREBASE_MESSAGING_SENDER_ID = your_sender_id
+REACT_APP_FIREBASE_APP_ID = your_app_id
+```
+
+### Step 5: Deploy!
+
+1. Click **"Create Static Site"**
+2. Wait 3-5 minutes for build
+3. Get your URL: `https://arms-platform.onrender.com`
+
+**Done! Auto-deploys on every push to `main2`! 🎉**
+
+📖 **Detailed Guide**: See [RENDER-DEPLOY.md](./RENDER-DEPLOY.md)
+
+---
+
+## Option B: Deploy to Vercel (CLI)
 
 ### Step 1: Install Vercel CLI
 ```bash
@@ -61,7 +113,7 @@ vercel --prod
 
 ---
 
-## Option B: Deploy to Netlify
+## Option C: Deploy to Netlify
 
 ### Step 1: Install Netlify CLI
 ```bash
@@ -106,7 +158,7 @@ netlify deploy --prod
 
 ---
 
-## Option C: Deploy to Firebase Hosting
+## Option D: Deploy to Firebase Hosting
 
 ### Step 1: Install Firebase CLI
 ```bash

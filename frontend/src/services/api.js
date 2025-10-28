@@ -6,7 +6,7 @@ import { newsService as fbNewsSvc } from './firebase/news';
 import { userService as fbUserSvc } from './firebase/users';
 import { chatService as fbChatSvc } from './firebase/chat';
 
-const USE_FIREBASE = String(process.env.REACT_APP_USE_FIREBASE || '').toLowerCase() === 'true';
+const USE_FIREBASE = true;
 
 // Create axios instance with default configuration
 const api = axios.create({
@@ -47,59 +47,48 @@ api.interceptors.response.use(
 // Authentication API
 export const authAPI = {
   login: async (credentials) => {
-    if (USE_FIREBASE) {
-      const user = await fbAuthSvc.login(credentials);
-      return { data: { user, accessToken: (await window?.firebaseToken) || '' } };
-    }
-    return api.post('/auth/login', credentials);
+    const user = await fbAuthSvc.login(credentials);
+    return { data: { user, accessToken: (await window?.firebaseToken) || '' } };
   },
   register: async (userData) => {
-    if (USE_FIREBASE) {
-      const user = await fbAuthSvc.register(userData);
-      return { data: { user, accessToken: (await window?.firebaseToken) || '' } };
-    }
-    return api.post('/auth/register', userData);
+    const user = await fbAuthSvc.register(userData);
+    return { data: { user, accessToken: (await window?.firebaseToken) || '' } };
   },
   googleLogin: async (idToken) => {
-    if (USE_FIREBASE) {
-      // For now rely on App.js Google One Tap -> backend flow not used; skip
-      throw { response: { data: { error: 'Google login via backend disabled. Use email/password for demo.' } } };
-    }
-    return api.post('/auth/google', { idToken });
+    // For now rely on App.js Google One Tap -> backend flow not used; skip
+    throw { response: { data: { error: 'Google login via backend disabled. Use email/password for demo.' } } };
   },
   getCurrentUser: async () => {
-    if (USE_FIREBASE) {
-      const user = await fbAuthSvc.getCurrentUser();
-      return { data: user };
-    }
-    return api.get('/auth/me');
+    const user = await fbAuthSvc.getCurrentUser();
+    return { data: user };
   },
 };
 
 // Course API
 export const courseAPI = {
-  getAllCourses: async () => USE_FIREBASE ? { data: await fbCourseSvc.getAllCourses() } : api.get('/courses'),
-  searchCourses: async (query) => USE_FIREBASE ? { data: await fbCourseSvc.searchCourses(query) } : api.get(`/courses?q=${encodeURIComponent(query)}`),
-  getCourseById: async (id) => USE_FIREBASE ? { data: await fbCourseSvc.getCourseById(id) } : api.get(`/courses/${id}`),
-  getCourseMaterials: async (courseId) => USE_FIREBASE ? { data: await fbMaterialSvc.getMaterialsByCourse(courseId) } : api.get(`/courses/${courseId}/materials`),
+  getAllCourses: async () => ({ data: await fbCourseSvc.getAllCourses() }),
+  searchCourses: async (query) => ({ data: await fbCourseSvc.searchCourses(query) }),
+  getCourseById: async (id) => ({ data: await fbCourseSvc.getCourseById(id) }),
+  getCourseMaterials: async (courseId) => ({ data: await fbMaterialSvc.getMaterialsByCourse(courseId) }),
   // Recently visited courses helpers (used by HomePage)
-  addRecentCourse: async (userId, courseId) => USE_FIREBASE ? { data: await fbCourseSvc.addRecentCourse(userId, courseId) } : api.post(`/users/${userId}/recent-courses`, { courseId }),
-  getRecentCourses: async (userId) => USE_FIREBASE ? { data: await fbCourseSvc.getRecentCourses(userId) } : api.get(`/users/${userId}/recent-courses`),
+  addRecentCourse: async (userId, courseId) => ({ data: await fbCourseSvc.addRecentCourse(userId, courseId) }),
+  getRecentCourses: async (userId) => ({ data: await fbCourseSvc.getRecentCourses(userId) }),
 };
 
 // Material API
 export const materialAPI = {
   uploadMaterial: async (courseId, formData) => {
-    if (USE_FIREBASE) {
-      const file = formData.get('file');
-      let uploaderId = undefined;
-      try { uploaderId = JSON.parse(localStorage.getItem('user') || '{}').id; } catch (_) { uploaderId = undefined; }
-      const meta = { 
-        title: formData.get('title'), 
-        description: '', 
-        materialType: formData.get('type') || 'OTHER',
-        uploaderId 
-      };
+    const file = formData.get('file');
+    let uploaderId = undefined;
+    try { uploaderId = JSON.parse(localStorage.getItem('user') || '{}').id; } catch (_) { uploaderId = undefined; }
+    const meta = { 
+      title: formData.get('title'), 
+      description: '', 
+      materialType: formData.get('type') || 'OTHER',
+      uploaderId 
+    };
+    const res = await fbMaterialSvc.uploadMaterial(courseId, file, meta);
+    return { data: res };
       const res = await fbMaterialSvc.uploadMaterial(courseId, file, meta);
       return { data: res };
     }
