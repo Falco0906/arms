@@ -84,6 +84,7 @@ const ARMSPlatform = () => {
   const [dmText, setDmText] = useState('');
   const dmUnsubRef = useRef(null);
   const convUnsubRef = useRef(null);
+  const dmMessagesEndRef = useRef(null);
   const [chatUserQuery, setChatUserQuery] = useState('');
   const [chatUserResults, setChatUserResults] = useState([]);
   const chatSearchTimeoutRef = useRef(null);
@@ -821,11 +822,26 @@ const ARMSPlatform = () => {
     return () => { if (convUnsubRef.current) { try { convUnsubRef.current(); } catch (_) {} } };
   }, [showGlobalChat, user?.id]);
 
+  // Auto-scroll to latest message
+  useEffect(() => {
+    if (dmMessagesEndRef.current) {
+      dmMessagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [dmMessages]);
+
   const openConversation = (conv) => {
     setActiveConversation(conv);
     if (dmUnsubRef.current) { try { dmUnsubRef.current(); } catch (_) {} }
     if (typeof chatAPI.subscribeToDM === 'function') {
-      dmUnsubRef.current = chatAPI.subscribeToDM(conv.id, (msgs) => setDmMessages(msgs));
+      dmUnsubRef.current = chatAPI.subscribeToDM(conv.id, (msgs) => {
+        setDmMessages(msgs);
+        // Scroll to bottom when conversation opens
+        setTimeout(() => {
+          if (dmMessagesEndRef.current) {
+            dmMessagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+          }
+        }, 100);
+      });
     } else {
       dmUnsubRef.current = null;
     }
@@ -835,10 +851,15 @@ const ARMSPlatform = () => {
     if (!activeConversation?.id || !dmText.trim()) return;
     try {
       await chatAPI.sendDM(activeConversation.id, { userId: user?.id, userName: user?.name || user?.email || '', text: dmText });
+      setDmText('');
+      // Scroll to bottom after sending
+      setTimeout(() => {
+        if (dmMessagesEndRef.current) {
+          dmMessagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+      }, 100);
     } catch (err) {
       // no-op offline
-    } finally {
-      setDmText('');
     }
   };
 
@@ -980,36 +1001,55 @@ const ARMSPlatform = () => {
           <div className="col-span-2 border border-gray-100 dark:border-neutral-800 rounded-lg flex flex-col max-h-[60vh]">
             <div className="flex-1 overflow-y-auto p-3 space-y-3 min-h-0">
               {activeConversation ? (
-                dmMessages
-                  .filter(m => !(m.deletedFor || []).includes(user?.id))
-                  .map(m => (
-                  <div key={m.id} className={`group text-sm ${m.userId === (user?.id) ? 'text-right' : 'text-left'}`}>
-                    <div className="text-xs text-gray-400 dark:text-gray-500">{m.userId === (user?.id) ? 'You' : (m.userName || 'User')} · {m.createdAt?.toDate ? m.createdAt.toDate().toLocaleString() : ''}</div>
-                    <div className="inline-flex items-center gap-2">
-                      <div className={`inline-block px-3 py-2 rounded-lg ${m.userId === (user?.id) ? 'bg-neutral-700 text-white' : 'bg-gray-100 dark:bg-neutral-700 text-gray-800 dark:text-gray-200'}`}>
-                        {m.text}
-                      </div>
-                      <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                        <button
-                          onClick={() => chatAPI.deleteMessageForMe(activeConversation.id, m.id, user?.id)}
-                          className="text-xs text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400"
-                          title="Delete for me"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                        {m.userId === user?.id && (
+                <>
+                  {dmMessages
+                    .filter(m => !(m.deletedFor || []).includes(user?.id))
+                    .map(m => (
+                    <div key={m.id} className={`group text-sm ${m.userId === (user?.id) ? 'text-right' : 'text-left'}`}>
+                      <div className="text-xs text-gray-400 dark:text-gray-500">{m.userId === (user?.id) ? 'You' : (m.userName || 'User')} · {m.createdAt?.toDate ? m.createdAt.toDate().toLocaleString() : ''}</div>
+                      <div className="inline-flex items-center gap-2">
+                        <div className={`inline-block px-3 py-2 rounded-lg ${m.userId === (user?.id) ? 'bg-neutral-700 text-white' : 'bg-gray-100 dark:bg-neutral-700 text-gray-800 dark:text-gray-200'}`}>
+                          {m.text}
+                        </div>
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
                           <button
-                            onClick={() => chatAPI.deleteMessageForEveryone(activeConversation.id, m.id)}
-                            className="text-xs text-gray-400 hover:text-red-600 dark:text-gray-500 dark:hover:text-red-500"
-                            title="Delete for everyone"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              try {
+                                await chatAPI.deleteMessageForMe(activeConversation.id, m.id, user?.id);
+                              } catch (err) {
+                                console.error('Failed to delete message:', err);
+                              }
+                            }}
+                            className="text-xs text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400"
+                            title="Delete for me"
                           >
-                            <X size={14} />
+                            <Trash2 size={14} />
                           </button>
-                        )}
+                          {m.userId === user?.id && (
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (window.confirm('Delete this message for everyone?')) {
+                                  try {
+                                    await chatAPI.deleteMessageForEveryone(activeConversation.id, m.id);
+                                  } catch (err) {
+                                    console.error('Failed to delete message:', err);
+                                  }
+                                }
+                              }}
+                              className="text-xs text-gray-400 hover:text-red-600 dark:text-gray-500 dark:hover:text-red-500"
+                              title="Delete for everyone"
+                            >
+                              <X size={14} />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))
+                  ))}
+                  <div ref={dmMessagesEndRef} />
+                </>
               ) : (
                 <div className="h-full flex items-center justify-center text-gray-400 dark:text-gray-500">Select a conversation</div>
               )}
@@ -1370,7 +1410,7 @@ const ARMSPlatform = () => {
       <div className="flex items-center space-x-4">
         <button 
           onClick={() => setDarkMode(v => !v)}
-          className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-2"
+          className="px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors flex items-center space-x-2 text-gray-700 dark:text-gray-300"
           title="Toggle theme"
         >
           {darkMode ? <Sun size={16} /> : <Moon size={16} />}
@@ -1385,7 +1425,7 @@ const ARMSPlatform = () => {
         </button>
         <button
           onClick={() => { setIsInboxOpen(false); setShowGlobalChat(true); }}
-          className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-2"
+          className="px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors flex items-center space-x-2 text-gray-700 dark:text-gray-300"
           title="Chat"
         >
           <MessageCircle size={16} />
@@ -1674,7 +1714,7 @@ const ARMSPlatform = () => {
                     onChange={handleMaterialSearch}
                   />
                   <select 
-                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500"
+                    className="px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg focus:ring-2 focus:ring-gray-500 dark:bg-neutral-900 dark:text-gray-100"
                     value={selectedMaterialType}
                     onChange={(e) => handleMaterialTypeFilter(e.target.value)}
                   >
