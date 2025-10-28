@@ -79,7 +79,7 @@ export const courseAPI = {
 export const materialAPI = {
   uploadMaterial: async (courseId, formData) => {
     const file = formData.get('file');
-    let uploaderId = undefined;
+    let uploaderId;
     try { uploaderId = JSON.parse(localStorage.getItem('user') || '{}').id; } catch (_) { uploaderId = undefined; }
     const meta = { 
       title: formData.get('title'), 
@@ -89,35 +89,6 @@ export const materialAPI = {
     };
     const res = await fbMaterialSvc.uploadMaterial(courseId, file, meta);
     return { data: res };
-      const res = await fbMaterialSvc.uploadMaterial(courseId, file, meta);
-      return { data: res };
-    }
-    try {
-      return await api.post(`/courses/${courseId}/materials`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-        timeout: 15000,
-        onUploadProgress: (progressEvent) => {
-          const percentCompleted = progressEvent.total ? Math.round((progressEvent.loaded * 100) / progressEvent.total) : 0;
-          console.log('Upload progress:', percentCompleted);
-        },
-      });
-    } catch (error) {
-      // Network/timeout fallback to Firebase if available
-      const isNetwork = !error.response || error.code === 'ECONNABORTED';
-      if (isNetwork) {
-        try {
-          const file = formData.get('file');
-          let uploaderId = undefined;
-          try { uploaderId = JSON.parse(localStorage.getItem('user') || '{}').id; } catch (_) { uploaderId = undefined; }
-          const meta = { title: formData.get('title'), description: '', materialType: formData.get('type') || 'OTHER', uploaderId };
-          const res = await fbMaterialSvc.uploadMaterial(courseId, file, meta);
-          return { data: res };
-        } catch (fbErr) {
-          throw fbErr;
-        }
-      }
-      throw error;
-    }
   },
   getMaterialsByCourse: async (courseId) => USE_FIREBASE ? { data: await fbMaterialSvc.getMaterialsByCourse(courseId) } : api.get(`/courses/${courseId}/materials`),
   deleteMaterial: async (id) => USE_FIREBASE ? { data: await fbMaterialSvc.deleteMaterial(id) } : api.delete(`/materials/${id}`),
