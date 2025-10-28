@@ -949,7 +949,7 @@ const ARMSPlatform = () => {
   // Overlays defined after handlers to avoid temporal dead zone
   const CourseChatEl = (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-neutral-900 rounded-xl max-w-2xl w-full max-h-[80vh] flex flex-col overflow-hidden">
+      <div className="bg-white dark:bg-neutral-900 rounded-xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden">
         <div className="flex items-center justify-between p-6 pb-4 border-b border-gray-200 dark:border-neutral-800">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Course Chat · {selectedCourse?.code}</h2>
           <button onClick={() => { if (courseChatUnsubRef.current) courseChatUnsubRef.current(); setShowCourseChat(false); }}>
