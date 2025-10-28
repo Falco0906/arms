@@ -1,5 +1,5 @@
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { collection, doc, addDoc, getDoc, getDocs, setDoc, query, where, orderBy, limit as fbLimit, deleteDoc, updateDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
+import { collection, doc, addDoc, getDoc, getDocs, setDoc, query, where, orderBy, limit as fbLimit, deleteDoc, updateDoc, serverTimestamp, onSnapshot, increment } from 'firebase/firestore';
 import { storage, db } from '../../firebase';
 
 export const materialService = {
@@ -43,7 +43,21 @@ export const materialService = {
       console.error('Firebase addDoc(materials) failed:', e);
       throw e;
     }
-    return { id: materialRef.id, url: downloadUrl };
+    
+    // Update user's upload statistics
+    if (metadata.uploaderId) {
+      try {
+        const userRef = doc(db, 'users', metadata.uploaderId);
+        await updateDoc(userRef, {
+          'statistics.uploads': increment(1)
+        });
+      } catch (e) {
+        console.error('Failed to update user statistics:', e);
+        // Don't throw - upload was successful even if stats update failed
+      }
+    }
+    
+    return { id: materialRef.id, url: downloadURL };
   },
   searchMaterials: async (term) => {
     try {
@@ -100,7 +114,7 @@ export const materialService = {
     await deleteObject(storageRef);
     await deleteDoc(doc(db, 'materials', materialId));
   },
-  incrementDownloads: async (materialId) => {
+  incrementDownloads: async (materialId, userId) => {
     if (!db) {
       throw new Error('Firebase is not configured for database');
     }
@@ -108,6 +122,19 @@ export const materialService = {
     const materialDoc = await getDoc(materialRef);
     if (!materialDoc.exists()) throw new Error('Material not found');
     await updateDoc(materialRef, { downloads: (materialDoc.data().downloads || 0) + 1 });
+    
+    // Update user's download statistics
+    if (userId) {
+      try {
+        const userRef = doc(db, 'users', userId);
+        await updateDoc(userRef, {
+          'statistics.downloads': increment(1)
+        });
+      } catch (e) {
+        console.error('Failed to update user download statistics:', e);
+        // Don't throw - download was successful even if stats update failed
+      }
+    }
   },
   isLikedByUser: async (materialId, userId) => {
     if (!db) {
