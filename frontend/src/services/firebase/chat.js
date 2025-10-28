@@ -16,7 +16,22 @@ export const chatService = {
       userName,
       text: text.trim(),
       createdAt: serverTimestamp(),
+      deletedFor: [],
     });
+  },
+  deleteCourseMessageForMe: async (courseId, messageId, userId) => {
+    if (!db) throw new Error('Firebase is not configured for database');
+    const messageRef = doc(db, 'courses', courseId, 'messages', messageId);
+    const messageDoc = await getDoc(messageRef);
+    if (!messageDoc.exists()) return;
+    const deletedFor = messageDoc.data().deletedFor || [];
+    if (!deletedFor.includes(userId)) {
+      await updateDoc(messageRef, { deletedFor: [...deletedFor, userId] });
+    }
+  },
+  deleteCourseMessageForEveryone: async (courseId, messageId) => {
+    if (!db) throw new Error('Firebase is not configured for database');
+    await deleteDoc(doc(db, 'courses', courseId, 'messages', messageId));
   },
 
   getOrCreateDMConversation: async (currentUser, otherUser) => {

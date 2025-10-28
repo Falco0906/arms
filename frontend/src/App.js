@@ -957,16 +957,54 @@ const ARMSPlatform = () => {
           </button>
         </div>
         <div className="flex-1 overflow-y-auto space-y-3 p-6 min-h-0">
-          {courseMessages.map(m => (
-            <div key={m.id || Math.random()} className="text-sm">
-              <div className="flex items-baseline space-x-2">
-                <span className="font-medium text-gray-800 dark:text-gray-200">{m.userId === (user?.id) ? 'You' : (m.userName || 'User')}</span>
-                <span className="text-xs text-gray-400 dark:text-gray-500">{m.createdAt?.toDate ? m.createdAt.toDate().toLocaleString() : (m.createdAt ? new Date(m.createdAt).toLocaleString() : '')}</span>
+          {courseMessages
+            .filter(m => !(m.deletedFor || []).includes(user?.id))
+            .map(m => (
+            <div key={m.id || Math.random()} className={`group text-sm ${m.userId === (user?.id) ? 'text-right' : 'text-left'}`}>
+              <div className="flex items-baseline space-x-2 justify-between">
+                <div className="flex items-baseline space-x-2">
+                  <span className="font-medium text-gray-800 dark:text-gray-200">{m.userId === (user?.id) ? 'You' : (m.userName || 'User')}</span>
+                  <span className="text-xs text-gray-400 dark:text-gray-500">{m.createdAt?.toDate ? m.createdAt.toDate().toLocaleString() : (m.createdAt ? new Date(m.createdAt).toLocaleString() : '')}</span>
+                </div>
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                  <button
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      try {
+                        await chatAPI.deleteCourseMessageForMe(selectedCourse.id, m.id, user?.id);
+                      } catch (err) {
+                        console.error('Failed to delete message:', err);
+                      }
+                    }}
+                    className="text-xs text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400"
+                    title="Delete for me"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                  {m.userId === user?.id && (
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        if (window.confirm('Delete this message for everyone?')) {
+                          try {
+                            await chatAPI.deleteCourseMessageForEveryone(selectedCourse.id, m.id);
+                          } catch (err) {
+                            console.error('Failed to delete message:', err);
+                          }
+                        }
+                      }}
+                      className="text-xs text-gray-400 hover:text-red-600 dark:text-gray-500 dark:hover:text-red-500"
+                      title="Delete for everyone"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="text-gray-700 dark:text-gray-300">{m.text}</div>
             </div>
           ))}
-          {courseMessages.length === 0 && (
+          {courseMessages.filter(m => !(m.deletedFor || []).includes(user?.id)).length === 0 && (
             <div className="text-center text-gray-400 dark:text-gray-500">No messages yet. Say hello!</div>
           )}
         </div>
