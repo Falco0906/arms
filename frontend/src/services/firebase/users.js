@@ -1,4 +1,4 @@
-import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, where, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 
 export const userService = {
@@ -102,5 +102,21 @@ export const userService = {
       return { id: userId, ...userDoc.data(), uploadCount: count };
     }));
     return users;
+  },
+  ensureUserStatsInitialized: async (userId) => {
+    const userRef = doc(db, 'users', userId);
+    const userDoc = await getDoc(userRef);
+    if (userDoc.exists()) {
+      const userData = userDoc.data();
+      if (!userData.statistics || typeof userData.statistics.uploads === 'undefined') {
+        await updateDoc(userRef, {
+          statistics: { 
+            notes: 0, 
+            uploads: 0, 
+            downloads: 0 
+          }
+        });
+      }
+    }
   }
 };

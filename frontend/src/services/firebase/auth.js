@@ -1,5 +1,5 @@
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../../firebase';
 
 export const authService = {
@@ -23,6 +23,14 @@ export const authService = {
     const user = userCredential.user;
     const userDoc = await getDoc(doc(db, 'users', user.uid));
     const userData = userDoc.data();
+    
+    // Ensure statistics are initialized
+    if (!userData?.statistics || typeof userData.statistics.uploads === 'undefined') {
+      await updateDoc(doc(db, 'users', user.uid), {
+        statistics: { notes: 0, uploads: 0, downloads: 0 }
+      });
+    }
+    
     return { id: user.uid, name: user.displayName, email: user.email, role: userData?.role };
   },
   logout: async () => { await signOut(auth); },
