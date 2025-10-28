@@ -63,7 +63,21 @@ export const chatService = {
       createdAt: serverTimestamp(),
       deletedFor: [], // Track who deleted this message
     });
-    await updateDoc(doc(db, 'conversations', conversationId), { updatedAt: serverTimestamp() });
+    await updateDoc(doc(db, 'conversations', conversationId), { 
+      updatedAt: serverTimestamp(),
+      lastMessage: text.trim(),
+      lastMessageSender: userId
+    });
+  },
+  markConversationAsRead: async (conversationId, userId) => {
+    if (!db) throw new Error('Firebase is not configured for database');
+    const convRef = doc(db, 'conversations', conversationId);
+    const convDoc = await getDoc(convRef);
+    if (!convDoc.exists()) return;
+    const readBy = convDoc.data().readBy || [];
+    if (!readBy.includes(userId)) {
+      await updateDoc(convRef, { readBy: [...readBy, userId] });
+    }
   },
   deleteMessageForMe: async (conversationId, messageId, userId) => {
     if (!db) throw new Error('Firebase is not configured for database');
