@@ -1,0 +1,43 @@
+services:
+  # Backend - Spring Boot API
+  - type: web
+    name: arms-backend
+    env: java
+    buildCommand: cd backend && mvn clean package -DskipTests
+    startCommand: cd backend && java -jar target/platform-0.0.1-SNAPSHOT.jar
+    envVars:
+      - key: JAVA_OPTS
+        value: -Xmx512m
+      - key: SERVER_PORT
+        value: 8080
+      - key: FIREBASE_PROJECT_ID
+        value: arms-8a8b8
+      - key: FIREBASE_STORAGE_BUCKET
+        value: arms-8a8b8.firebasestorage.app
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+    healthCheckPath: /api/health
+
+  # Frontend - React App
+  - type: web
+    name: arms-frontend
+    env: static
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: frontend/build
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: REACT_APP_FIREBASE_API_KEY
+        value: AIzaSyB_OE_1Un1ufZIJHEFaX31_phbR3x6UOcY
+      - key: REACT_APP_FIREBASE_AUTH_DOMAIN
+        value: arms-8a8b8.firebaseapp.com
+      - key: REACT_APP_FIREBASE_PROJECT_ID
+        value: arms-8a8b8
+      - key: REACT_APP_FIREBASE_STORAGE_BUCKET
+        value: arms-8a8b8.firebasestorage.app
+      - key: REACT_APP_FIREBASE_MESSAGING_SENDER_ID
+        value: 614056279037
+      - key: REACT_APP_FIREBASE_APP_ID
+        value: 1:614056279037:web:2d1f29553a67c74890b794
