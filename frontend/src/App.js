@@ -949,14 +949,14 @@ const ARMSPlatform = () => {
   // Overlays defined after handlers to avoid temporal dead zone
   const CourseChatEl = (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-neutral-900 rounded-xl max-w-2xl w-full p-6 flex flex-col h-[70vh]">
-        <div className="flex items-center justify-between mb-4">
+      <div className="bg-white dark:bg-neutral-900 rounded-xl max-w-2xl w-full max-h-[80vh] flex flex-col overflow-hidden">
+        <div className="flex items-center justify-between p-6 pb-4 border-b border-gray-200 dark:border-neutral-800">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Course Chat · {selectedCourse?.code}</h2>
           <button onClick={() => { if (courseChatUnsubRef.current) courseChatUnsubRef.current(); setShowCourseChat(false); }}>
             <X className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" size={24} />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto space-y-3 border border-gray-100 dark:border-neutral-800 rounded-lg p-3 min-h-0">
+        <div className="flex-1 overflow-y-auto space-y-3 p-6 min-h-0">
           {courseMessages.map(m => (
             <div key={m.id || Math.random()} className="text-sm">
               <div className="flex items-baseline space-x-2">
@@ -970,15 +970,17 @@ const ARMSPlatform = () => {
             <div className="text-center text-gray-400 dark:text-gray-500">No messages yet. Say hello!</div>
           )}
         </div>
-        <div className="mt-3 flex items-center space-x-2">
-          <input
-            value={courseChatText}
-            onChange={(e) => setCourseChatText(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') sendCourseChat(); }}
-            placeholder="Type a message"
-            className="flex-1 px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg focus:ring-2 focus:ring-gray-400 dark:bg-neutral-800 dark:text-gray-100"
-          />
-          <button onClick={sendCourseChat} disabled={!courseChatText.trim()} className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 disabled:opacity-50 transition-colors">Send</button>
+        <div className="p-6 pt-4 border-t border-gray-200 dark:border-neutral-800">
+          <div className="flex items-center space-x-2">
+            <input
+              value={courseChatText}
+              onChange={(e) => setCourseChatText(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') sendCourseChat(); }}
+              placeholder="Type a message"
+              className="flex-1 px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg focus:ring-2 focus:ring-gray-400 dark:bg-neutral-800 dark:text-gray-100"
+            />
+            <button onClick={sendCourseChat} disabled={!courseChatText.trim()} className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 disabled:opacity-50 transition-colors whitespace-nowrap">Send</button>
+          </div>
         </div>
       </div>
     </div>
