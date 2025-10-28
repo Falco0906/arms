@@ -1,6 +1,6 @@
 import React from 'react';
 
-const NotificationSidebar = ({ isOpen, onClose, items, onMarkAllRead, onClearAll }) => {
+const NotificationSidebar = ({ isOpen, onClose, items, onMarkAllRead, onClearAll, onItemClick }) => {
   return (
     <div className="fixed inset-y-0 left-64 right-0 z-10 pointer-events-none">
 
@@ -36,7 +36,11 @@ const NotificationSidebar = ({ isOpen, onClose, items, onMarkAllRead, onClearAll
               </div>
               <div className="flex-1 overflow-y-auto divide-y divide-gray-200 dark:divide-neutral-700">
                 {items.map(item => (
-                  <div key={item.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                  <div 
+                    key={item.id} 
+                    className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
+                    onClick={() => onItemClick && onItemClick(item)}
+                  >
                     <div className="flex items-start space-x-3">
                       <div className="w-2 h-2 bg-gray-400 rounded-full mt-2"></div>
                       <div className="flex-1">

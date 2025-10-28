@@ -813,9 +813,10 @@ const ARMSPlatform = () => {
 
   // Global chat subscriptions
   useEffect(() => {
-    if (!showGlobalChat || !user?.id) return;
+    if (!user?.id) return;
     if (convUnsubRef.current) { try { convUnsubRef.current(); } catch (_) {} }
     if (typeof chatAPI.subscribeToUserConversations === 'function') {
+      let previousConvs = [];
       convUnsubRef.current = chatAPI.subscribeToUserConversations(user.id, (convs) => {
         // Sort by latest message
         const sorted = convs.sort((a, b) => {
@@ -832,12 +833,37 @@ const ARMSPlatform = () => {
           return lastSender && lastSender !== user.id && !readBy.includes(user.id);
         }).length;
         setUnreadDMCount(unread);
+        
+        // Add inbox notification for new messages
+        if (previousConvs.length > 0) {
+          sorted.forEach(conv => {
+            const prevConv = previousConvs.find(c => c.id === conv.id);
+            const isNewMessage = prevConv && 
+              conv.lastMessage && 
+              conv.lastMessage !== prevConv.lastMessage &&
+              conv.lastMessageSender !== user.id;
+            
+            if (isNewMessage) {
+              const sender = (conv.participants || []).find(p => p.id === conv.lastMessageSender);
+              const newNotification = {
+                id: Date.now() + Math.random(),
+                message: `New message from ${sender?.name || 'Someone'}`,
+                type: 'message',
+                timestamp: new Date(),
+                conversationId: conv.id
+              };
+              setNotificationList(prev => [newNotification, ...prev]);
+              setNotifications(prev => prev + 1);
+            }
+          });
+        }
+        previousConvs = sorted;
       });
     } else {
       convUnsubRef.current = null;
     }
     return () => { if (convUnsubRef.current) { try { convUnsubRef.current(); } catch (_) {} } };
-  }, [showGlobalChat, user?.id]);
+  }, [user?.id]);
 
   // Auto-scroll to latest message
   useEffect(() => {
@@ -923,25 +949,25 @@ const ARMSPlatform = () => {
   // Overlays defined after handlers to avoid temporal dead zone
   const CourseChatEl = (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl max-w-2xl w-full p-6 flex flex-col h-[70vh]">
+      <div className="bg-white dark:bg-neutral-900 rounded-xl max-w-2xl w-full p-6 flex flex-col h-[70vh]">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-900">Course Chat · {selectedCourse?.code}</h2>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Course Chat · {selectedCourse?.code}</h2>
           <button onClick={() => { if (courseChatUnsubRef.current) courseChatUnsubRef.current(); setShowCourseChat(false); }}>
-            <X className="text-gray-400 hover:text-gray-600" size={24} />
+            <X className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" size={24} />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto space-y-3 border border-gray-100 rounded-lg p-3">
+        <div className="flex-1 overflow-y-auto space-y-3 border border-gray-100 dark:border-neutral-800 rounded-lg p-3 min-h-0">
           {courseMessages.map(m => (
             <div key={m.id || Math.random()} className="text-sm">
               <div className="flex items-baseline space-x-2">
-                <span className="font-medium text-gray-800">{m.userId === (user?.id) ? 'You' : (m.userName || 'User')}</span>
-                <span className="text-xs text-gray-400">{m.createdAt?.toDate ? m.createdAt.toDate().toLocaleString() : (m.createdAt ? new Date(m.createdAt).toLocaleString() : '')}</span>
+                <span className="font-medium text-gray-800 dark:text-gray-200">{m.userId === (user?.id) ? 'You' : (m.userName || 'User')}</span>
+                <span className="text-xs text-gray-400 dark:text-gray-500">{m.createdAt?.toDate ? m.createdAt.toDate().toLocaleString() : (m.createdAt ? new Date(m.createdAt).toLocaleString() : '')}</span>
               </div>
-              <div className="text-gray-700">{m.text}</div>
+              <div className="text-gray-700 dark:text-gray-300">{m.text}</div>
             </div>
           ))}
           {courseMessages.length === 0 && (
-            <div className="text-center text-gray-400">No messages yet. Say hello!</div>
+            <div className="text-center text-gray-400 dark:text-gray-500">No messages yet. Say hello!</div>
           )}
         </div>
         <div className="mt-3 flex items-center space-x-2">
@@ -950,9 +976,9 @@ const ARMSPlatform = () => {
             onChange={(e) => setCourseChatText(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') sendCourseChat(); }}
             placeholder="Type a message"
-            className="flex-1 px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg focus:ring-2 focus:ring-gray-400 dark:bg-neutral-900 dark:text-gray-100"
+            className="flex-1 px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg focus:ring-2 focus:ring-gray-400 dark:bg-neutral-800 dark:text-gray-100"
           />
-          <button onClick={sendCourseChat} className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 disabled:opacity-50">Send</button>
+          <button onClick={sendCourseChat} disabled={!courseChatText.trim()} className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 disabled:opacity-50 transition-colors">Send</button>
         </div>
       </div>
     </div>
@@ -2297,6 +2323,16 @@ const ARMSPlatform = () => {
         items={notificationList}
         onMarkAllRead={() => setNotifications(0)}
         onClearAll={() => { setNotificationList([]); setNotifications(0); }}
+        onItemClick={(item) => {
+          if (item.type === 'message' && item.conversationId) {
+            const conv = conversations.find(c => c.id === item.conversationId);
+            if (conv) {
+              setIsInboxOpen(false);
+              setShowGlobalChat(true);
+              setTimeout(() => openConversation(conv), 100);
+            }
+          }
+        }}
       />
     </div>
   );
