@@ -1,28 +1,53 @@
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { collection, doc, addDoc, getDoc, getDocs, setDoc, query, where, orderBy, limit as fbLimit, deleteDoc, updateDoc, serverTimestamp, onSnapshot, increment } from 'firebase/firestore';
 import { storage, db } from '../../firebase';
+import { supabaseStorageService } from '../supabase/storage';
+import { isSupabaseConfigured } from '../../supabaseClient';
+
+const USE_SUPABASE = process.env.REACT_APP_USE_SUPABASE === 'true';
 
 export const materialService = {
   uploadMaterial: async (courseId, file, metadata) => {
-    if (!storage || !db) {
-      throw new Error('Firebase is not configured for storage/database');
+    if (!db) {
+      throw new Error('Firebase is not configured for database');
     }
+
     const timestamp = Date.now();
     const filename = `${courseId}/${timestamp}_${file.name}`;
-    const storageRef = ref(storage, `materials/${filename}`);
-    let snapshot;
-    try {
-      snapshot = await uploadBytes(storageRef, file);
-    } catch (e) {
-      console.error('Firebase uploadBytes failed:', e);
-      throw e;
-    }
     let downloadUrl;
-    try {
-      downloadUrl = await getDownloadURL(snapshot.ref);
-    } catch (e) {
-      console.error('Firebase getDownloadURL failed:', e);
-      throw e;
+    let storagePath;
+
+    // Use Supabase for storage if configured
+    if (USE_SUPABASE && isSupabaseConfigured()) {
+      try {
+        const result = await supabaseStorageService.uploadFile(file, filename);
+        downloadUrl = result.url;
+        storagePath = result.path;
+        console.log('File uploaded to Supabase:', storagePath);
+      } catch (e) {
+        console.error('Supabase upload failed:', e);
+        throw e;
+      }
+    } else {
+      // Fallback to Firebase Storage
+      if (!storage) {
+        throw new Error('Firebase Storage is not configured');
+      }
+      const storageRef = ref(storage, `materials/${filename}`);
+      let snapshot;
+      try {
+        snapshot = await uploadBytes(storageRef, file);
+      } catch (e) {
+        console.error('Firebase uploadBytes failed:', e);
+        throw e;
+      }
+      try {
+        downloadUrl = await getDownloadURL(snapshot.ref);
+        storagePath = filename;
+      } catch (e) {
+        console.error('Firebase getDownloadURL failed:', e);
+        throw e;
+      }
     }
     let materialRef;
     try {
@@ -31,7 +56,8 @@ export const materialService = {
       title: metadata.title || file.name,
       description: metadata.description || '',
       filename: file.name,
-      path: filename,
+      path: storagePath || filename,
+      storageProvider: USE_SUPABASE && isSupabaseConfigured() ? 'supabase' : 'firebase',
       url: downloadUrl,
       type: (metadata.materialType || 'OTHER'),
       size: file.size,
@@ -104,14 +130,36 @@ export const materialService = {
     return querySnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
   },
   deleteMaterial: async (materialId) => {
-    if (!storage || !db) {
-      throw new Error('Firebase is not configured for storage/database');
+    if (!db) {
+      throw new Error('Firebase is not configured for database');
     }
     const materialDoc = await getDoc(doc(db, 'materials', materialId));
     if (!materialDoc.exists()) throw new Error('Material not found');
     const materialData = materialDoc.data();
-    const storageRef = ref(storage, `materials/${materialData.path}`);
-    await deleteObject(storageRef);
+    
+    // Delete from appropriate storage provider
+    if (materialData.storageProvider === 'supabase' && isSupabaseConfigured()) {
+      try {
+        await supabaseStorageService.deleteFile(materialData.path);
+        console.log('File deleted from Supabase:', materialData.path);
+      } catch (e) {
+        console.error('Supabase delete failed:', e);
+        // Continue to delete from Firestore even if storage delete fails
+      }
+    } else {
+      // Delete from Firebase Storage
+      if (storage) {
+        try {
+          const storageRef = ref(storage, `materials/${materialData.path}`);
+          await deleteObject(storageRef);
+        } catch (e) {
+          console.error('Firebase Storage delete failed:', e);
+          // Continue to delete from Firestore even if storage delete fails
+        }
+      }
+    }
+    
+    // Delete from Firestore
     await deleteDoc(doc(db, 'materials', materialId));
   },
   incrementDownloads: async (materialId, userId) => {
