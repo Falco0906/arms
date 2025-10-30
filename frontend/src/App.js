@@ -24,7 +24,8 @@ import {
   ThumbsUp,
   MessageCircle,
   Sun,
-  Moon
+  Moon,
+  Github
 } from 'lucide-react';
 import HomePage from './components/HomePage';
 import NotificationSidebar from './components/common/NotificationSidebar';
@@ -1444,11 +1445,20 @@ const ARMSPlatform = () => {
         </button>
         <button 
           onClick={handleLogout}
-          className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-red-600 hover:bg-red-50 transition-colors"
+          className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
         >
           <LogOut size={20} />
           <span>Logout</span>
         </button>
+        <a
+          href="https://github.com/Falco0906"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors text-sm"
+        >
+          <Github size={18} />
+          <span>GitHub</span>
+        </a>
       </div>
     </div>
   );
