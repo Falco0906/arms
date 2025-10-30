@@ -1779,7 +1779,7 @@ const ARMSPlatform = () => {
                         <span>{likesCountMap[material.id] || 0}</span>
                       </button>
                       <a 
-                        href={getFileUrl(material.path)}
+                        href={material.url || getFileUrl(material.path)}
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={() => materialAPI.incrementDownloads(material.id, user?.id).catch(() => {})}
@@ -1904,7 +1904,7 @@ const ARMSPlatform = () => {
                             </div>
                           </button>
                           <a 
-                            href={getFileUrl(material.path)}
+                            href={material.url || getFileUrl(material.path)}
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={() => materialAPI.incrementDownloads(material.id, user?.id).catch(() => {})}
