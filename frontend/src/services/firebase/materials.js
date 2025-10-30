@@ -83,7 +83,7 @@ export const materialService = {
       }
     }
     
-    return { id: materialRef.id, url: downloadURL };
+    return { id: materialRef.id, url: downloadUrl };
   },
   searchMaterials: async (term) => {
     try {
