@@ -51,6 +51,19 @@ export const materialService = {
     }
     let materialRef;
     try {
+      // Get uploader info from localStorage
+      let uploaderData = null;
+      try {
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        if (user.id) {
+          uploaderData = {
+            id: user.id,
+            name: user.name || user.email || 'Unknown',
+            email: user.email
+          };
+        }
+      } catch (_) {}
+
       materialRef = await addDoc(collection(db, 'materials'), {
       courseId,
       title: metadata.title || file.name,
@@ -62,6 +75,7 @@ export const materialService = {
       type: (metadata.materialType || 'OTHER'),
       size: file.size,
       uploaderId: metadata.uploaderId,
+      uploader: uploaderData,
       downloads: 0,
       createdAt: serverTimestamp()
     });
