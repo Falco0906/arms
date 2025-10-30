@@ -1798,7 +1798,19 @@ const ARMSPlatform = () => {
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-gray-400 dark:text-gray-500">
-                      {(() => { const d = material.uploadedAt || material.createdAt; return d ? new Date(d).toLocaleDateString() : 'Unknown date'; })()}
+                      {(() => { 
+                        const d = material.uploadedAt || material.createdAt; 
+                        if (!d) return 'Unknown date';
+                        try {
+                          // Handle Firebase Timestamp
+                          if (d.toDate) return d.toDate().toLocaleDateString();
+                          // Handle ISO string or timestamp
+                          const date = new Date(d);
+                          return isNaN(date.getTime()) ? 'Unknown date' : date.toLocaleDateString();
+                        } catch (e) {
+                          return 'Unknown date';
+                        }
+                      })()}
                     </span>
                     <div className="flex items-center space-x-3">
                       <button
@@ -1909,7 +1921,19 @@ const ARMSPlatform = () => {
                               </button>
                             </div>
                             <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                              {(() => { const d = material.uploadedAt || material.createdAt; return d ? new Date(d).toLocaleDateString() : 'Unknown date'; })()}
+                              {(() => { 
+                                const d = material.uploadedAt || material.createdAt; 
+                                if (!d) return 'Unknown date';
+                                try {
+                                  // Handle Firebase Timestamp
+                                  if (d.toDate) return d.toDate().toLocaleDateString();
+                                  // Handle ISO string or timestamp
+                                  const date = new Date(d);
+                                  return isNaN(date.getTime()) ? 'Unknown date' : date.toLocaleDateString();
+                                } catch (e) {
+                                  return 'Unknown date';
+                                }
+                              })()}
                             </div>
                           </div>
                         </div>
