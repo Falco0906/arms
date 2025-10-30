@@ -8,6 +8,7 @@ import {
   Download,
   Clock,
   Star,
+  User,
   HelpCircle
 } from 'lucide-react';
 import { newsAPI, courseAPI, materialAPI, userAPI, getFileUrl } from '../services/api';
@@ -93,18 +94,38 @@ const HomePage = ({ user, setShowCreateNews, error, selectedCourse, onCourseSele
     setLoading(prev => ({ ...prev, downloads: true }));
     try {
       const downloadsData = await materialAPI.getTopDownloads();
-      const files = (downloadsData?.data || []).slice(0, 6).map(file => ({
-        id: file.id,
-        title: file.title || file.name || 'Untitled',
-        downloads: file.downloads || file.downloadCount || 0,
-        path: file.path || file.url || '',
-        courseCode: file.courseCode || file.course?.code,
-        courseName: file.courseName || file.course?.title,
-        uploaderName: file.uploader?.name,
-        uploaderAvatar: file.uploader?.avatar,
-        uploaderId: file.uploader?.id || file.uploaderId
-      }));
-      setTopDownloads(files);
+      const filesWithUploaders = await Promise.all(
+        (downloadsData?.data || []).slice(0, 6).map(async (file) => {
+          let uploaderData = file.uploader;
+          
+          // Fetch uploader data if missing
+          if (!uploaderData && file.uploaderId) {
+            try {
+              const userData = await userAPI.getUserById(file.uploaderId);
+              uploaderData = {
+                id: userData.id,
+                name: userData.name || userData.email || 'Unknown',
+                email: userData.email
+              };
+            } catch (e) {
+              console.error('Failed to fetch uploader:', e);
+            }
+          }
+          
+          return {
+            id: file.id,
+            title: file.title || file.name || 'Untitled',
+            downloads: file.downloads || file.downloadCount || 0,
+            url: file.url,
+            path: file.path,
+            courseCode: file.courseCode || file.course?.code,
+            courseName: file.courseName || file.course?.title,
+            uploaderName: uploaderData?.name || 'Unknown',
+            uploaderId: uploaderData?.id || file.uploaderId
+          };
+        })
+      );
+      setTopDownloads(filesWithUploaders);
     } catch (err) {
       console.error('Failed to load top downloads:', err);
       setTopDownloads([]);
@@ -301,22 +322,20 @@ const HomePage = ({ user, setShowCreateNews, error, selectedCourse, onCourseSele
                         </p>
                       </div>
                       <div className="flex items-center justify-between mt-auto">
-                        <div 
-                          onClick={() => handleUserProfileClick(file.uploaderId)}
-                          className="flex items-center space-x-2 cursor-pointer"
+                        <button 
+                          onClick={() => file.uploaderId && handleUserProfileClick(file.uploaderId)}
+                          className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+                          disabled={!file.uploaderId}
                         >
-                          <img
-                            src={file.uploaderAvatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80'}
-                            alt={file.uploaderName}
-                            className="h-6 w-6 rounded-full"
-                          />
-                          <span className="text-sm text-gray-600 dark:text-gray-300">{file.uploaderName}</span>
-                        </div>
+                          <User size={16} className="flex-shrink-0" />
+                          <span>{file.uploaderName}</span>
+                        </button>
                         <a 
-                          href={getFileUrl(file.path || file.url || '')} 
-                          className="text-gray-300 hover:text-white p-2"
+                          href={file.url || getFileUrl(file.path || '')} 
+                          className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 p-2 transition-colors"
                           title="Download file"
-                          target="_blank" rel="noopener noreferrer"
+                          target="_blank" 
+                          rel="noopener noreferrer"
                         >
                           <Download size={16} />
                         </a>
