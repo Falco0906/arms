@@ -448,8 +448,29 @@ const ARMSPlatform = () => {
     setSelectedMaterialType('ALL');
     try {
       const materialsData = await materialAPI.getMaterialsByCourse(course.id);
-      setMaterials(materialsData.data);
-      setFilteredMaterials(materialsData.data);
+      
+      // Enrich materials with uploader data if missing
+      const enrichedMaterials = await Promise.all(materialsData.data.map(async (material) => {
+        if (!material.uploader && material.uploaderId) {
+          try {
+            const uploaderData = await userAPI.getUserById(material.uploaderId);
+            return {
+              ...material,
+              uploader: {
+                id: uploaderData.id,
+                name: uploaderData.name || uploaderData.email || 'Unknown',
+                email: uploaderData.email
+              }
+            };
+          } catch (e) {
+            return material;
+          }
+        }
+        return material;
+      }));
+      
+      setMaterials(enrichedMaterials);
+      setFilteredMaterials(enrichedMaterials);
       // Load likes (counts and current user's like state)
       try {
         const ids = materialsData.data.map(m => m.id);
