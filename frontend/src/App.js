@@ -571,7 +571,38 @@ const ARMSPlatform = () => {
     
     try {
       await materialAPI.deleteMaterial(materialId);
-      // Refresh the user profile to update the materials list
+      
+      // Refresh the materials list
+      if (selectedCourse) {
+        // Remove from local state immediately for better UX
+        setMaterials(prev => prev.filter(m => m.id !== materialId));
+        setFilteredMaterials(prev => prev.filter(m => m.id !== materialId));
+        
+        // Optionally refresh from server
+        const materialsData = await materialAPI.getMaterialsByCourse(selectedCourse.id);
+        const enrichedMaterials = await Promise.all(materialsData.data.map(async (material) => {
+          if (!material.uploader && material.uploaderId) {
+            try {
+              const uploaderData = await userAPI.getUserById(material.uploaderId);
+              return {
+                ...material,
+                uploader: {
+                  id: uploaderData.id,
+                  name: uploaderData.name || uploaderData.email || 'Unknown',
+                  email: uploaderData.email
+                }
+              };
+            } catch (e) {
+              return material;
+            }
+          }
+          return material;
+        }));
+        setMaterials(enrichedMaterials);
+        setFilteredMaterials(enrichedMaterials);
+      }
+      
+      // Refresh the user profile if viewing profile
       if (selectedUser) {
         await handleUserSelect(selectedUser);
       }
@@ -1968,6 +1999,15 @@ const ARMSPlatform = () => {
                           >
                             <Download size={16} />
                           </a>
+                          {(material.uploaderId === user?.id || material.uploader?.id === user?.id) && (
+                            <button
+                              onClick={() => handleDeleteMaterial(material.id)}
+                              className="text-red-500 dark:text-red-400 p-2 rounded-lg hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
+                              title="Delete material"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
                         </div>
                       </div>
                       {commentsOpen[material.id] && (
