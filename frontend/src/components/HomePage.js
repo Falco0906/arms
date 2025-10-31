@@ -402,7 +402,11 @@ const HomePage = ({ user, setShowCreateNews, error, selectedCourse, onCourseSele
                           onClick={async (e) => {
                             // Track download
                             try {
-                              await materialAPI.incrementDownload(file.id);
+                              await materialAPI.incrementDownloads(file.id, user?.id);
+                              // Update local count
+                              setTopDownloads(prev => prev.map(f => 
+                                f.id === file.id ? { ...f, downloads: (f.downloads || 0) + 1 } : f
+                              ));
                             } catch (err) {
                               console.error('Failed to track download:', err);
                             }
