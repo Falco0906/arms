@@ -9,11 +9,12 @@ import {
   Clock,
   Star,
   User,
-  HelpCircle
+  HelpCircle,
+  Trash2
 } from 'lucide-react';
 import { newsAPI, courseAPI, materialAPI, userAPI, getFileUrl } from '../services/api';
 
-const HomePage = ({ user, setShowCreateNews, error, selectedCourse, onCourseSelect, news = [] }) => {
+const HomePage = ({ user, setShowCreateNews, error, selectedCourse, onCourseSelect, news = [], onDeleteNews }) => {
   const [recentCourses, setRecentCourses] = useState([]);
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [topDownloads, setTopDownloads] = useState([]);
@@ -261,15 +262,29 @@ const HomePage = ({ user, setShowCreateNews, error, selectedCourse, onCourseSele
                 {news && news.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {news.map(item => (
-                      <div key={item.id} className="group rounded-lg border border-gray-200 dark:border-neutral-800 overflow-hidden hover:shadow-lg transition-all cursor-pointer">
+                      <div key={item.id} className="group rounded-lg border border-gray-200 dark:border-neutral-800 overflow-hidden hover:shadow-lg transition-all">
                         {item.imageUrl && (
-                          <div className="aspect-video w-full overflow-hidden bg-gray-100 dark:bg-neutral-800">
+                          <div className="aspect-video w-full overflow-hidden bg-gray-100 dark:bg-neutral-800 relative">
                             <img 
                               src={item.imageUrl} 
                               alt={item.title}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 cursor-pointer"
                               onClick={() => window.open(item.imageUrl, '_blank')}
                             />
+                            {user?.email === '2410080079@klh.edu.in' && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (window.confirm('Delete this news item?')) {
+                                    onDeleteNews?.(item.id);
+                                  }
+                                }}
+                                className="absolute top-2 right-2 p-2 bg-red-500 hover:bg-red-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                                title="Delete news"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            )}
                           </div>
                         )}
                         <div className="p-4">

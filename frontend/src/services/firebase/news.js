@@ -1,4 +1,4 @@
-import { collection, addDoc, getDocs, query, where, orderBy, limit, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where, orderBy, limit, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../../firebase';
 
 export const newsService = {
@@ -18,5 +18,8 @@ export const newsService = {
   createNews: async (newsData) => {
     const docRef = await addDoc(collection(db, 'news'), { ...newsData, createdAt: serverTimestamp() });
     return { id: docRef.id, ...newsData };
+  },
+  deleteNews: async (newsId) => {
+    await deleteDoc(doc(db, 'news', newsId));
   }
 };

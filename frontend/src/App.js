@@ -616,6 +616,17 @@ const ARMSPlatform = () => {
     }
   };
 
+  const handleDeleteNews = async (newsId) => {
+    try {
+      await newsAPI.deleteNews(newsId);
+      // Refresh news
+      const newsData = await newsAPI.getRecentNews(5);
+      setNews(newsData.data);
+    } catch (error) {
+      setError(handleAPIError(error));
+    }
+  };
+
   const handleGlobalSearch = useCallback(async (query) => {
     setUserSearchQuery(query);
     if (query.trim() === '') {
@@ -2344,36 +2355,35 @@ const ARMSPlatform = () => {
     </div>
   );
 
-  const CreateNewsModal = () => {
-    const handleImageSelect = (e) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        setError('Please select an image file');
-        return;
-      }
-      
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        setError('Image size must be less than 5MB');
-        return;
-      }
-      
-      // Create preview
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setNewsForm(prev => ({
-          ...prev,
-          imageFile: file,
-          imagePreview: reader.result
-        }));
-      };
-      reader.readAsDataURL(file);
-    };
+  const handleImageSelect = useCallback((e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
     
-    const handleCreateNews = async () => {
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setError('Please select an image file');
+      return;
+    }
+    
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Image size must be less than 5MB');
+      return;
+    }
+    
+    // Create preview
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setNewsForm(prev => ({
+        ...prev,
+        imageFile: file,
+        imagePreview: reader.result
+      }));
+    };
+    reader.readAsDataURL(file);
+  }, []);
+  
+  const handleCreateNews = useCallback(async () => {
       if (!newsForm.title) {
         setError('Please enter a title');
         return;
@@ -2421,8 +2431,9 @@ const ARMSPlatform = () => {
       } finally {
         setLoading(false);
       }
-    };
+  }, [newsForm, user]);
 
+  const CreateNewsModal = () => {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div className="bg-white dark:bg-neutral-900 rounded-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
@@ -2532,7 +2543,7 @@ const ARMSPlatform = () => {
       <div className="flex-1 flex flex-col overflow-hidden">
         {HeaderEl}
         <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-neutral-950">
-          {currentPage === 'home' && <HomePage user={user} setShowCreateNews={setShowCreateNews} error={error} news={news} />}
+          {currentPage === 'home' && <HomePage user={user} setShowCreateNews={setShowCreateNews} error={error} news={news} onDeleteNews={handleDeleteNews} />}
           {currentPage === 'dashboard' && selectedCourse ? (
             CourseDetailEl
           ) : currentPage === 'dashboard' ? (
