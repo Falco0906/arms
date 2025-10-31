@@ -1181,9 +1181,9 @@ const ARMSPlatform = () => {
               onChange={(e) => setCourseChatText(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') sendCourseChat(); }}
               placeholder="Type a message"
-              className="flex-1 px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg focus:ring-2 focus:ring-gray-400 dark:bg-neutral-800 dark:text-gray-100"
+              className="flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg focus:ring-2 focus:ring-gray-400 dark:bg-neutral-800 dark:text-gray-100"
             />
-            <button onClick={sendCourseChat} disabled={!courseChatText.trim()} className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 disabled:opacity-50 transition-colors whitespace-nowrap">Send</button>
+            <button onClick={sendCourseChat} disabled={!courseChatText.trim()} className="flex-shrink-0 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 disabled:opacity-50 transition-colors">Send</button>
           </div>
         </div>
       </div>
@@ -1353,9 +1353,9 @@ const ARMSPlatform = () => {
                   onKeyDown={(e) => { if (e.key === 'Enter') sendDM(); }}
                   placeholder={activeConversation ? 'Type a message' : 'Select a conversation'}
                   disabled={!activeConversation}
-                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg focus:ring-2 focus:ring-gray-400 dark:bg-neutral-900 dark:text-gray-100"
+                  className="flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg focus:ring-2 focus:ring-gray-400 dark:bg-neutral-900 dark:text-gray-100"
                 />
-                <button onClick={sendDM} disabled={!activeConversation || !dmText.trim()} className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 disabled:opacity-50 transition-colors whitespace-nowrap">Send</button>
+                <button onClick={sendDM} disabled={!activeConversation || !dmText.trim()} className="flex-shrink-0 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 disabled:opacity-50 transition-colors">Send</button>
               </div>
             </div>
           </div>
@@ -2295,9 +2295,9 @@ const ARMSPlatform = () => {
                 onChange={(e) => setCourseChatText(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') sendCourseChat(); }}
                 placeholder="Type a message"
-                className="flex-1 px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg focus:ring-2 focus:ring-gray-400 dark:bg-neutral-900 dark:text-gray-100"
+                className="flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg focus:ring-2 focus:ring-gray-400 dark:bg-neutral-900 dark:text-gray-100"
               />
-              <button onClick={sendCourseChat} className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 disabled:opacity-50">Send</button>
+              <button onClick={sendCourseChat} className="flex-shrink-0 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 disabled:opacity-50">Send</button>
             </div>
           </div>
         </div>
