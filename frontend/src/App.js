@@ -57,8 +57,13 @@ const ARMSPlatform = () => {
   const [newsForm, setNewsForm] = useState({
     title: '',
     content: '',
-    type: 'ANNOUNCEMENT'
+    type: 'ANNOUNCEMENT',
+    imageFile: null,
+    imagePreview: null
   });
+  
+  // Admin email for news/events management
+  const NEWS_ADMIN_EMAIL = '2410080079@klh.edu.in';
   
   // API data states
   const [courses, setCourses] = useState([]);
@@ -2340,18 +2345,73 @@ const ARMSPlatform = () => {
   );
 
   const CreateNewsModal = () => {
+    const handleImageSelect = (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        setError('Please select an image file');
+        return;
+      }
+      
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setError('Image size must be less than 5MB');
+        return;
+      }
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setNewsForm(prev => ({
+          ...prev,
+          imageFile: file,
+          imagePreview: reader.result
+        }));
+      };
+      reader.readAsDataURL(file);
+    };
+    
     const handleCreateNews = async () => {
-      if (!newsForm.title || !newsForm.content) {
-        setError('Please fill in all required fields');
+      if (!newsForm.title) {
+        setError('Please enter a title');
+        return;
+      }
+      
+      if (!newsForm.imageFile) {
+        setError('Please select an image');
         return;
       }
 
       setLoading(true);
       setError(null);
       try {
-        await newsAPI.createNews(newsForm);
+        // Upload image to Supabase
+        const { supabase, STORAGE_BUCKET } = await import('./supabaseClient');
+        const fileName = `news/${Date.now()}-${newsForm.imageFile.name}`;
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from(STORAGE_BUCKET)
+          .upload(fileName, newsForm.imageFile);
+        
+        if (uploadError) throw uploadError;
+        
+        // Get public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from(STORAGE_BUCKET)
+          .getPublicUrl(fileName);
+        
+        // Create news with image URL
+        await newsAPI.createNews({
+          title: newsForm.title,
+          content: newsForm.content || '',
+          type: newsForm.type,
+          imageUrl: publicUrl,
+          createdBy: user?.email
+        });
+        
         setShowCreateNews(false);
-        setNewsForm({ title: '', content: '', type: 'ANNOUNCEMENT' });
+        setNewsForm({ title: '', content: '', type: 'ANNOUNCEMENT', imageFile: null, imagePreview: null });
         
         // Refresh news
         const newsData = await newsAPI.getRecentNews(5);
@@ -2365,9 +2425,9 @@ const ARMSPlatform = () => {
 
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-xl max-w-2xl w-full p-6">
+        <div className="bg-white dark:bg-neutral-900 rounded-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-gray-900">Create News/Announcement</h2>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Upload News/Event Image</h2>
             <button onClick={() => setShowCreateNews(false)}>
               <X className="text-gray-400 hover:text-gray-600" size={24} />
             </button>
@@ -2382,39 +2442,61 @@ const ARMSPlatform = () => {
           
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title *</label>
               <input 
                 type="text" 
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" 
-                placeholder="Enter news title"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg focus:ring-2 focus:ring-gray-500 dark:bg-neutral-800 dark:text-gray-100" 
+                placeholder="e.g., Mid-Term Exam Timetable"
                 value={newsForm.title}
                 onChange={(e) => setNewsForm(prev => ({ ...prev, title: e.target.value }))}
               />
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type</label>
               <select 
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg focus:ring-2 focus:ring-gray-500 dark:bg-neutral-800 dark:text-gray-100"
                 value={newsForm.type}
                 onChange={(e) => setNewsForm(prev => ({ ...prev, type: e.target.value }))}
               >
                 <option value="ANNOUNCEMENT">Announcement</option>
-                <option value="NEWS">News</option>
                 <option value="EVENT">Event</option>
+                <option value="TIMETABLE">Timetable</option>
                 <option value="URGENT">Urgent</option>
               </select>
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Content *</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description (Optional)</label>
               <textarea 
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 h-32" 
-                placeholder="Enter news content"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg focus:ring-2 focus:ring-gray-500 dark:bg-neutral-800 dark:text-gray-100 h-20" 
+                placeholder="Add any additional details..."
                 value={newsForm.content}
                 onChange={(e) => setNewsForm(prev => ({ ...prev, content: e.target.value }))}
               />
             </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Image *</label>
+              <input 
+                type="file"
+                accept="image/*"
+                onChange={handleImageSelect}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg focus:ring-2 focus:ring-gray-500 dark:bg-neutral-800 dark:text-gray-100"
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Max size: 5MB. Supported: JPG, PNG, GIF, WebP</p>
+            </div>
+            
+            {newsForm.imagePreview && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Preview</label>
+                <img 
+                  src={newsForm.imagePreview} 
+                  alt="Preview" 
+                  className="w-full max-h-96 object-contain rounded-lg border border-gray-300 dark:border-neutral-700"
+                />
+              </div>
+            )}
             
             <div className="flex space-x-3 pt-4">
               <button 
@@ -2425,10 +2507,10 @@ const ARMSPlatform = () => {
               </button>
               <button 
                 onClick={handleCreateNews}
-                disabled={loading || !newsForm.title || !newsForm.content}
+                disabled={loading || !newsForm.title || !newsForm.imageFile}
                 className="flex-1 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors disabled:opacity-50"
               >
-                {loading ? 'Creating...' : 'Create News'}
+                {loading ? 'Uploading...' : 'Upload Image'}
               </button>
             </div>
           </div>
@@ -2450,7 +2532,7 @@ const ARMSPlatform = () => {
       <div className="flex-1 flex flex-col overflow-hidden">
         {HeaderEl}
         <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-neutral-950">
-          {currentPage === 'home' && <HomePage user={user} setShowCreateNews={setShowCreateNews} error={error} />}
+          {currentPage === 'home' && <HomePage user={user} setShowCreateNews={setShowCreateNews} error={error} news={news} />}
           {currentPage === 'dashboard' && selectedCourse ? (
             CourseDetailEl
           ) : currentPage === 'dashboard' ? (

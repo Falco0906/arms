@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { newsAPI, courseAPI, materialAPI, userAPI, getFileUrl } from '../services/api';
 
-const HomePage = ({ user, setShowCreateNews, error, selectedCourse, onCourseSelect }) => {
+const HomePage = ({ user, setShowCreateNews, error, selectedCourse, onCourseSelect, news = [] }) => {
   const [recentCourses, setRecentCourses] = useState([]);
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [topDownloads, setTopDownloads] = useState([]);
@@ -225,13 +225,13 @@ const HomePage = ({ user, setShowCreateNews, error, selectedCourse, onCourseSele
               </button>
             </div>
 
-            {(user?.role === 'FACULTY' || user?.role === 'ADMIN') && (
+            {user?.email === '2410080079@klh.edu.in' && (
               <button 
                 onClick={() => setShowCreateNews(true)}
                 className="bg-gray-700 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors flex items-center space-x-2"
               >
                 <Plus size={16} />
-                <span>Create Event</span>
+                <span>Upload News/Event</span>
               </button>
             )}
           </div>
@@ -245,46 +245,60 @@ const HomePage = ({ user, setShowCreateNews, error, selectedCourse, onCourseSele
 
           <div className="space-y-6">
 
-            {/* Upcoming Events - Full Width */}
+            {/* News & Announcements - Full Width */}
             <div className="bg-white dark:bg-neutral-900 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-800">
               <div className="border-b border-gray-200 dark:border-neutral-800 p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">Upcoming Events</h2>
-                    <p className="text-gray-500 dark:text-gray-400 mt-1">Stay updated with latest events and deadlines</p>
+                    <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">News & Announcements</h2>
+                    <p className="text-gray-500 dark:text-gray-400 mt-1">Important updates, timetables, and events</p>
                   </div>
                   <Calendar size={24} className="text-gray-400" />
                 </div>
               </div>
               
               <div className="p-6">
-                {loading.events ? (
-                  <div className="text-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-500 mx-auto"></div>
-                  </div>
-                ) : (
+                {news && news.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {upcomingEvents.map(event => (
-                      <div key={event.id} className="flex items-start space-x-4 p-4 rounded-lg border border-gray-200 dark:border-neutral-800 hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
-                        <div className="w-16 text-center p-2 bg-gray-100 dark:bg-neutral-800 rounded-lg">
-                          <div className="text-xl font-bold text-gray-700 dark:text-gray-100">{new Date(event.date).toLocaleDateString('en-US', { day: '2-digit' })}</div>
-                          <div className="text-sm font-medium text-gray-500 dark:text-gray-300">{new Date(event.date).toLocaleDateString('en-US', { month: 'short' })}</div>
-                        </div>
-                        <div className="flex-1">
-                          <h4 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">{event.title}</h4>
-                          <p className="text-gray-600 dark:text-gray-300 mb-2">{event.description}</p>
-                          <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
-                            <Clock size={14} className="mr-1" />
-                            {new Date(event.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                    {news.map(item => (
+                      <div key={item.id} className="group rounded-lg border border-gray-200 dark:border-neutral-800 overflow-hidden hover:shadow-lg transition-all cursor-pointer">
+                        {item.imageUrl && (
+                          <div className="aspect-video w-full overflow-hidden bg-gray-100 dark:bg-neutral-800">
+                            <img 
+                              src={item.imageUrl} 
+                              alt={item.title}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              onClick={() => window.open(item.imageUrl, '_blank')}
+                            />
                           </div>
+                        )}
+                        <div className="p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className={`text-xs font-semibold px-2 py-1 rounded ${
+                              item.type === 'URGENT' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
+                              item.type === 'TIMETABLE' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                              item.type === 'EVENT' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' :
+                              'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400'
+                            }`}>
+                              {item.type}
+                            </span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                              {item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString() : 
+                               item.createdAt ? new Date(item.createdAt).toLocaleDateString() : ''}
+                            </span>
+                          </div>
+                          <h4 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">{item.title}</h4>
+                          {item.content && (
+                            <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2">{item.content}</p>
+                          )}
                         </div>
                       </div>
                     ))}
-                    {upcomingEvents.length === 0 && (
-                      <div className="col-span-3 text-center py-8 text-gray-500 dark:text-gray-400">
-                        No upcoming events
-                      </div>
-                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                    <Calendar size={48} className="mx-auto mb-4 opacity-50" />
+                    <p>No announcements yet</p>
                   </div>
                 )}
               </div>
