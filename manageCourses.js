@@ -179,5 +179,33 @@ async function manageCourses() {
   }
 }
 
-// Run the script
-manageCourses();
+// Function to delete all news
+async function deleteAllNews() {
+  try {
+    console.log('🗑️  Deleting all news/announcements...\n');
+    
+    const newsSnapshot = await db.collection('news').get();
+    console.log(`Found ${newsSnapshot.size} news items to delete`);
+    
+    if (newsSnapshot.size === 0) {
+      console.log('✨ No news items found!');
+      return;
+    }
+    
+    const deletePromises = newsSnapshot.docs.map(doc => 
+      db.collection('news').doc(doc.id).delete()
+    );
+    
+    await Promise.all(deletePromises);
+    
+    console.log('\n✅ All news items deleted successfully!');
+    console.log(`Total deleted: ${newsSnapshot.size}`);
+    
+  } catch (error) {
+    console.error('❌ Error deleting news:', error);
+  }
+}
+
+// Run the script - UNCOMMENT THE ONE YOU WANT TO RUN
+// manageCourses();
+deleteAllNews().then(() => process.exit(0));
