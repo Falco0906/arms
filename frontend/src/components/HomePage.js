@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { newsAPI, courseAPI, materialAPI, userAPI, getFileUrl } from '../services/api';
 
-const HomePage = ({ user, setShowCreateNews, error, selectedCourse, onCourseSelect, news = [], onDeleteNews }) => {
+const HomePage = ({ user, setShowCreateNews, error, selectedCourse, onCourseSelect, news = [], onDeleteNews, onUserSelect }) => {
   const [recentCourses, setRecentCourses] = useState([]);
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [topDownloads, setTopDownloads] = useState([]);
@@ -113,16 +113,30 @@ const HomePage = ({ user, setShowCreateNews, error, selectedCourse, onCourseSele
             }
           }
           
+          // Get course short name
+          let courseShortName = file.courseCode || file.course?.code;
+          const courseNameMap = {
+            '24SC2006A': 'OOPS',
+            '24AD2103A': 'DBMS', 
+            '24CS2101': 'OS',
+            '24MT2019': 'P&S',
+            '24SDCS01A': 'FEDF',
+            '24CS06HF': 'ADS',
+            '24AD2102': 'DSV'
+          };
+          courseShortName = courseNameMap[courseShortName] || courseShortName;
+          
           return {
             id: file.id,
             title: file.title || file.name || 'Untitled',
             downloads: file.downloads || file.downloadCount || 0,
             url: file.url,
             path: file.path,
-            courseCode: file.courseCode || file.course?.code,
+            courseCode: courseShortName,
             courseName: file.courseName || file.course?.title,
             uploaderName: uploaderData?.name || 'Unknown',
-            uploaderId: uploaderData?.id || file.uploaderId
+            uploaderId: uploaderData?.id || file.uploaderId,
+            courseId: file.courseId || file.course?.id
           };
         })
       );
@@ -152,8 +166,14 @@ const HomePage = ({ user, setShowCreateNews, error, selectedCourse, onCourseSele
     }
   };
 
-  const handleUserProfileClick = (userId) => {
-    window.location.href = `/profile/${userId}`;
+  const handleUserProfileClick = async (uploaderId) => {
+    if (!uploaderId || !onUserSelect) return;
+    try {
+      const userData = await userAPI.getUserById(uploaderId);
+      onUserSelect(userData, 'home');
+    } catch (err) {
+      console.error('Failed to load user profile:', err);
+    }
   };
 
   const getTimeOfDay = () => {
@@ -345,36 +365,51 @@ const HomePage = ({ user, setShowCreateNews, error, selectedCourse, onCourseSele
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {topDownloads.map(file => (
-                    <div key={file.id} className="flex flex-col p-4 rounded-lg border border-gray-200 dark:border-neutral-800 hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+                    <div key={file.id} className="flex flex-col p-4 rounded-lg border border-gray-200 dark:border-neutral-800 hover:shadow-md dark:hover:bg-neutral-800 transition-all">
                       <div className="flex items-center space-x-3 mb-3">
-                        <FileText size={20} className="text-gray-400 flex-shrink-0" />
-                        <div className="min-w-0">
-                          <h4 className="text-base font-medium text-gray-900 dark:text-gray-100 truncate">{file.title}</h4>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">{file.downloads} downloads</p>
+                        <div className="p-2 bg-gray-100 dark:bg-neutral-800 rounded-lg">
+                          <FileText size={20} className="text-gray-600 dark:text-gray-400 flex-shrink-0" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h4 className="text-base font-semibold text-gray-900 dark:text-gray-100 truncate">{file.title}</h4>
+                          <div className="flex items-center space-x-2 text-xs text-gray-500 dark:text-gray-400">
+                            <Download size={12} />
+                            <span>{file.downloads} downloads</span>
+                          </div>
                         </div>
                       </div>
-                      <div className="mb-3">
+                      <div className="mb-3 flex-1">
                         <p className="text-sm text-gray-600 dark:text-gray-300">
-                          <span className="font-medium">{file.courseCode}</span> - {file.courseName}
+                          <span className="inline-block px-2 py-1 bg-gray-100 dark:bg-neutral-800 rounded font-medium text-gray-700 dark:text-gray-300">{file.courseCode}</span>
+                          {file.courseName && <span className="ml-2">{file.courseName}</span>}
                         </p>
                       </div>
-                      <div className="flex items-center justify-between mt-auto">
+                      <div className="flex items-center justify-between mt-auto pt-3 border-t border-gray-100 dark:border-neutral-700">
                         <button 
                           onClick={() => file.uploaderId && handleUserProfileClick(file.uploaderId)}
-                          className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+                          className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
                           disabled={!file.uploaderId}
+                          title={`View ${file.uploaderName}'s profile`}
                         >
-                          <User size={16} className="flex-shrink-0" />
-                          <span>{file.uploaderName}</span>
+                          <User size={14} className="flex-shrink-0" />
+                          <span className="truncate max-w-[120px]">{file.uploaderName}</span>
                         </button>
                         <a 
                           href={file.url || getFileUrl(file.path || '')} 
-                          className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 p-2 transition-colors"
+                          className="flex items-center space-x-1 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors text-sm"
                           title="Download file"
-                          target="_blank" 
-                          rel="noopener noreferrer"
+                          download
+                          onClick={async (e) => {
+                            // Track download
+                            try {
+                              await materialAPI.incrementDownload(file.id);
+                            } catch (err) {
+                              console.error('Failed to track download:', err);
+                            }
+                          }}
                         >
-                          <Download size={16} />
+                          <Download size={14} />
+                          <span>Download</span>
                         </a>
                       </div>
                     </div>

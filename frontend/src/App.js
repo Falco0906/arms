@@ -2544,7 +2544,7 @@ const ARMSPlatform = () => {
       <div className="flex-1 flex flex-col overflow-hidden">
         {HeaderEl}
         <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-neutral-950">
-          {currentPage === 'home' && <HomePage user={user} setShowCreateNews={setShowCreateNews} error={error} news={news} onDeleteNews={handleDeleteNews} />}
+          {currentPage === 'home' && <HomePage user={user} setShowCreateNews={setShowCreateNews} error={error} news={news} onDeleteNews={handleDeleteNews} onUserSelect={handleUserSelect} />}
           {currentPage === 'dashboard' && selectedCourse ? (
             CourseDetailEl
           ) : currentPage === 'dashboard' ? (
