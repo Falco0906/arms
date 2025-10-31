@@ -1529,7 +1529,16 @@ const ARMSPlatform = () => {
         )}
       </nav>
       
-      <div className="p-4 border-t border-gray-200 dark:border-neutral-800 space-y-2">
+      <div className="p-4 border-t border-gray-200 dark:border-neutral-800 space-y-2 relative">
+        {/* Popup positioned above Settings button */}
+        {showPlaceholderPopup && (
+          <div className="absolute bottom-full left-4 right-4 mb-2 z-50">
+            <div className="bg-gray-800 dark:bg-gray-700 text-white px-3 py-2 rounded-lg shadow-lg text-xs flex items-center space-x-2">
+              <span>{placeholderMessage}</span>
+            </div>
+          </div>
+        )}
+        
         <button 
           onClick={() => showPlaceholderFeature()}
           className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"
@@ -2620,16 +2629,6 @@ const ARMSPlatform = () => {
           }
         }}
       />
-      
-      {/* Fun Placeholder Popup */}
-      {showPlaceholderPopup && (
-        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 animate-bounce">
-          <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-6 py-3 rounded-full shadow-2xl flex items-center space-x-3 border-2 border-white">
-            <span className="text-2xl">🎪</span>
-            <span className="font-semibold text-lg">{placeholderMessage}</span>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
