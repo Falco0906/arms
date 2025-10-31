@@ -1,4 +1,4 @@
-import { collection, doc, addDoc, getDoc, getDocs, query, where, orderBy, serverTimestamp, onSnapshot, updateDoc, setDoc } from 'firebase/firestore';
+import { collection, doc, addDoc, getDoc, getDocs, query, where, orderBy, serverTimestamp, onSnapshot, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 
 export const chatService = {
@@ -21,17 +21,26 @@ export const chatService = {
   },
   deleteCourseMessageForMe: async (courseId, messageId, userId) => {
     if (!db) throw new Error('Firebase is not configured for database');
+    if (!messageId) throw new Error('Message ID is required');
+    console.log('Deleting message for me:', { courseId, messageId, userId });
     const messageRef = doc(db, 'courses', courseId, 'messages', messageId);
     const messageDoc = await getDoc(messageRef);
-    if (!messageDoc.exists()) return;
+    if (!messageDoc.exists()) {
+      console.warn('Message not found:', messageId);
+      return;
+    }
     const deletedFor = messageDoc.data().deletedFor || [];
     if (!deletedFor.includes(userId)) {
       await updateDoc(messageRef, { deletedFor: [...deletedFor, userId] });
+      console.log('Message deleted for user:', messageId);
     }
   },
   deleteCourseMessageForEveryone: async (courseId, messageId) => {
     if (!db) throw new Error('Firebase is not configured for database');
+    if (!messageId) throw new Error('Message ID is required');
+    console.log('Deleting message for everyone:', { courseId, messageId });
     await deleteDoc(doc(db, 'courses', courseId, 'messages', messageId));
+    console.log('Message deleted for everyone:', messageId);
   },
 
   getOrCreateDMConversation: async (currentUser, otherUser) => {
