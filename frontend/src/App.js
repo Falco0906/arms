@@ -2317,11 +2317,11 @@ const ARMSPlatform = () => {
 
   const FilterModalEl = (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl max-w-md w-full p-6">
+      <div className="bg-white dark:bg-neutral-900 rounded-xl max-w-md w-full p-6 border border-gray-200 dark:border-neutral-800">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-900">Select Courses</h2>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Select Courses</h2>
           <button onClick={() => { setShowFilterModal(false); }}>
-            <X className="text-gray-400 hover:text-gray-600" size={24} />
+            <X className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" size={24} />
           </button>
         </div>
         
@@ -2340,7 +2340,7 @@ const ARMSPlatform = () => {
             course.code.toLowerCase().includes(courseSearchQuery.toLowerCase()) ||
             (course.description && course.description.toLowerCase().includes(courseSearchQuery.toLowerCase()))
           ).map(course => (
-            <label key={course.id} className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
+            <label key={course.id} className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 cursor-pointer transition-colors">
               <input 
                 type="checkbox" 
                 checked={selectedCourses.includes(course.id)}
@@ -2351,23 +2351,23 @@ const ARMSPlatform = () => {
                     setSelectedCourses(selectedCourses.filter(id => id !== course.id));
                   }
                 }}
-                className="text-gray-700 focus:ring-purple-500"
+                className="text-gray-700 dark:text-gray-300 focus:ring-purple-500 dark:focus:ring-purple-400 rounded"
               />
-              <div className="w-8 h-8 bg-gray-700 rounded-lg flex items-center justify-center text-white text-sm font-bold">
+              <div className="w-8 h-8 bg-gray-700 dark:bg-gray-600 rounded-lg flex items-center justify-center text-white text-sm font-bold">
                 {course.code.substring(0, 2)}
               </div>
-              <div>
-                <p className="font-medium text-gray-900">{course.code}</p>
-                <p className="text-sm text-gray-600">{course.title}</p>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-gray-900 dark:text-gray-100 truncate">{course.code}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400 truncate">{course.title}</p>
               </div>
             </label>
           ))}
         </div>
         
-        <div className="flex space-x-3 pt-4 mt-4 border-t border-gray-200">
+        <div className="flex space-x-3 pt-4 mt-4 border-t border-gray-200 dark:border-neutral-800">
           <button 
             onClick={() => setShowFilterModal(false)}
-            className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+            className="flex-1 px-4 py-2 border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
           >
             Cancel
           </button>
@@ -2381,7 +2381,7 @@ const ARMSPlatform = () => {
               }
               setShowFilterModal(false);
             }}
-            className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-500 transition-colors"
+            className="flex-1 px-4 py-2 bg-gray-700 dark:bg-gray-600 text-white rounded-lg hover:bg-gray-600 dark:hover:bg-gray-500 transition-colors"
           >
             Apply Filter
           </button>
