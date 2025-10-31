@@ -87,7 +87,7 @@ const UserProfile = ({ user, onBack, currentUserId }) => {
       <div className="flex items-center space-x-4">
         <button 
           onClick={onBack}
-          className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+          className="p-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
         >
           <ArrowLeft size={20} />
         </button>
@@ -291,11 +291,11 @@ const UserProfile = ({ user, onBack, currentUserId }) => {
                   </div>
                   
                   <div className="flex items-center space-x-2">
-                    <button className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
-                      <Eye size={16} className="text-gray-600" />
+                    <button className="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-neutral-800 hover:text-gray-900 dark:hover:text-gray-100 transition-colors">
+                      <Eye size={16} />
                     </button>
-                    <button className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
-                      <Download size={16} className="text-gray-600" />
+                    <button className="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-neutral-800 hover:text-gray-900 dark:hover:text-gray-100 transition-colors">
+                      <Download size={16} />
                     </button>
                   </div>
                 </div>

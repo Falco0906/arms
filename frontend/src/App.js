@@ -1758,7 +1758,7 @@ const ARMSPlatform = () => {
             />
             <button 
               onClick={() => { setIsInboxOpen(false); setShowFilterModal(true); }}
-              className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              className="flex items-center space-x-2 px-4 py-2 border border-gray-300 dark:border-neutral-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
             >
               <Filter size={16} />
               <span>Filter</span>
