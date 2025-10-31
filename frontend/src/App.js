@@ -2215,40 +2215,56 @@ const ARMSPlatform = () => {
                       <span className="font-medium text-gray-800 dark:text-gray-200">{m.userId === (user?.id) ? 'You' : (m.userName || 'User')}</span>
                       <span className="text-xs text-gray-400 dark:text-gray-500">{m.createdAt?.toDate ? m.createdAt.toDate().toLocaleString() : (m.createdAt ? new Date(m.createdAt).toLocaleString() : '')}</span>
                     </div>
-                    {m.userId === (user?.id) && (
-                      <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                        <button
-                          onClick={async () => {
-                            try {
-                              await chatAPI.deleteCourseMessageForMe(selectedCourse.id, m.id, user?.id);
-                            } catch (err) {
-                              console.error('Failed to delete message:', err);
-                            }
-                          }}
-                          className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-                          title="Delete for me"
-                        >
-                          Delete for me
-                        </button>
-                        <span className="text-gray-300 dark:text-gray-600">|</span>
-                        <button
-                          onClick={async () => {
-                            if (window.confirm('Delete this message for everyone?')) {
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                      <button
+                        onClick={() => setReplyingToCourseMsg(m)}
+                        className="text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                        title="Reply"
+                      >
+                        Reply
+                      </button>
+                      {m.userId === (user?.id) && (
+                        <>
+                          <span className="text-gray-300 dark:text-gray-600">|</span>
+                          <button
+                            onClick={async () => {
                               try {
-                                await chatAPI.deleteCourseMessageForEveryone(selectedCourse.id, m.id);
+                                await chatAPI.deleteCourseMessageForMe(selectedCourse.id, m.id, user?.id);
                               } catch (err) {
                                 console.error('Failed to delete message:', err);
                               }
-                            }
-                          }}
-                          className="text-xs text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                          title="Delete for everyone"
-                        >
-                          Delete for all
-                        </button>
-                      </div>
-                    )}
+                            }}
+                            className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                            title="Delete for me"
+                          >
+                            Delete for me
+                          </button>
+                          <span className="text-gray-300 dark:text-gray-600">|</span>
+                          <button
+                            onClick={async () => {
+                              if (window.confirm('Delete this message for everyone?')) {
+                                try {
+                                  await chatAPI.deleteCourseMessageForEveryone(selectedCourse.id, m.id);
+                                } catch (err) {
+                                  console.error('Failed to delete message:', err);
+                                }
+                              }
+                            }}
+                            className="text-xs text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                            title="Delete for everyone"
+                          >
+                            Delete for all
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
+                  {m.replyTo && (
+                    <div className="mt-1 mb-1 p-2 bg-gray-100 dark:bg-neutral-800 rounded border-l-2 border-gray-400 dark:border-gray-600 text-xs">
+                      <div className="font-medium text-gray-600 dark:text-gray-400">{m.replyTo.userName}</div>
+                      <div className="text-gray-500 dark:text-gray-500 truncate">{m.replyTo.text}</div>
+                    </div>
+                  )}
                   <div className="text-gray-700 dark:text-gray-200">{m.text}</div>
                 </div>
               ))}
@@ -2256,6 +2272,23 @@ const ARMSPlatform = () => {
                 <div className="text-center text-gray-400 dark:text-gray-500">No messages yet. Say hello!</div>
               )}
             </div>
+            {replyingToCourseMsg && (
+              <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800 flex items-start justify-between">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center space-x-1 text-xs text-blue-600 dark:text-blue-400 mb-1">
+                    <CornerUpLeft size={12} />
+                    <span>Replying to {replyingToCourseMsg.userName}</span>
+                  </div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400 truncate">{replyingToCourseMsg.text}</div>
+                </div>
+                <button
+                  onClick={() => setReplyingToCourseMsg(null)}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 ml-2"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            )}
             <div className="mt-3 flex items-center space-x-2">
               <input
                 value={courseChatText}
