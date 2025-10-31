@@ -202,11 +202,11 @@ const ARMSPlatform = () => {
                   </div>
                   <div className="flex-1">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{u.name}</h3>
-                    <p className="text-gray-600 dark:text-gray-400">{u.uploads} total uploads</p>
+                    <p className="text-gray-600 dark:text-gray-400">{u.uploadCount || u.uploads || 0} total uploads</p>
                   </div>
                   <div className="text-right">
-                    <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{u.uploads}</div>
-                    <div className="text-sm text-gray-500">uploads</div>
+                    <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{u.uploadCount || u.uploads || 0}</div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">uploads</div>
                   </div>
                 </div>
               </div>
