@@ -165,36 +165,44 @@ const HomePage = ({ user, setShowCreateNews, error, selectedCourse, onCourseSele
 
   const guideSteps = [
     {
-      title: 'Welcome to ARMS',
-      body: 'This quick tour will help you find your way around the platform.'
+      title: 'Welcome to ARMS! 🎓',
+      body: 'Academic Resource Management System - Your one-stop platform for course materials, notes, and collaboration.'
     },
     {
-      title: 'Inbox',
-      body: 'Open Inbox from the left sidebar to view uploads and updates related to your activity.'
+      title: 'News & Announcements 📰',
+      body: 'Check the homepage for exam timetables, important announcements, and event updates. Click any image to view full size.'
     },
     {
-      title: 'Dashboard & Courses',
-      body: 'Browse all courses in Dashboard. Click a course to view materials, filter by type, search, and open an uploader\'s profile from each material.'
+      title: 'Dashboard & Courses 📚',
+      body: 'Browse courses using short names (OOPS, DBMS, etc.). Click a course to view materials, search, filter by type, and download resources. You can also delete your own uploads.'
     },
     {
-      title: 'Upload',
-      body: 'Use the Upload button in the top bar to add notes, assignments, code, and more.'
+      title: 'Upload Materials 📤',
+      body: 'Click Upload in the top bar to share notes, assignments, code, and more. Select course, type, and add a description. Your uploads appear in your profile and course pages.'
     },
     {
-      title: 'Rankings & Profiles',
-      body: 'See top contributors in Rankings and open any user to view their profile and materials. The profile back button returns to where you came from (home/rankings/course).'
+      title: 'Course Chat 💬',
+      body: 'Each course has a dedicated chat in the sidebar. Ask questions, discuss topics, and collaborate. Hover over your messages to delete them (for you or for everyone).'
     },
     {
-      title: 'Pinned & Recent',
-      body: 'Use the sidebar to access Pinned courses and Recently visited courses. Pins and recents are saved per user and persist across logins.'
+      title: 'Direct Messages 📨',
+      body: 'Click the inbox icon to chat privately with other users. Start conversations from user profiles or the chat page. Messages are private and secure.'
     },
     {
-      title: 'Personal Notes',
-      body: 'Keep private notes using the Personal Notes page in the sidebar. Notes auto-save locally per user and remain after logout.'
+      title: 'Rankings & Profiles 🏆',
+      body: 'See top contributors in Rankings. Click any user to view their profile, uploaded materials, and statistics. Edit your own profile name by clicking the edit icon.'
     },
     {
-      title: 'Google Sign-In',
-      body: 'Sign in with your college Google account (@klh.edu.in). Other accounts are blocked for security.'
+      title: 'Personal Notes 📝',
+      body: 'Keep private notes in the sidebar. Notes auto-save locally and remain after logout. Perfect for quick reminders and study notes.'
+    },
+    {
+      title: 'Search & Filter 🔍',
+      body: 'Use the global search bar to find courses, materials, or people. Filter materials by type (Notes, Assignments, Code, etc.) in course pages.'
+    },
+    {
+      title: 'Dark Mode 🌙',
+      body: 'Toggle dark mode in settings (top-right). Your preference is saved and works across all pages for comfortable viewing.'
     }
   ];
 

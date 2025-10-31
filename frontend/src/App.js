@@ -2433,7 +2433,7 @@ const ARMSPlatform = () => {
       }
   }, [newsForm, user]);
 
-  const CreateNewsModal = () => {
+  const CreateNewsModal = React.memo(() => {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div className="bg-white dark:bg-neutral-900 rounded-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
@@ -2455,7 +2455,8 @@ const ARMSPlatform = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title *</label>
               <input 
-                type="text" 
+                type="text"
+                autoFocus
                 className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg focus:ring-2 focus:ring-gray-500 dark:bg-neutral-800 dark:text-gray-100" 
                 placeholder="e.g., Mid-Term Exam Timetable"
                 value={newsForm.title}
@@ -2528,7 +2529,7 @@ const ARMSPlatform = () => {
         </div>
       </div>
     );
-  };
+  });
 
   if (!user) {
     if (showRegister) {
