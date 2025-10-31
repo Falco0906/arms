@@ -1363,7 +1363,7 @@ const ARMSPlatform = () => {
     <div className="w-64 bg-white dark:bg-neutral-900 border-r border-gray-200 dark:border-neutral-800 h-full min-h-0 flex flex-col relative z-20">
       <div className="p-6 border-b border-gray-200 dark:border-neutral-800">
         <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">ARMS</div>
-        <p className="text-sm text-gray-600 mt-1">Welcome back, {user?.name}</p>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Welcome back, {user?.name}</p>
       </div>
       
       <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
@@ -1420,19 +1420,19 @@ const ARMSPlatform = () => {
         {/* Pinned Courses */}
         {pinnedCourseIds.length > 0 && (
           <div className="pt-4">
-            <div className="text-xs font-semibold text-gray-500 px-3 mb-2">Pinned</div>
+            <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 px-3 mb-2">Pinned</div>
             <div className="space-y-1">
               {pinnedCourseIds
                 .map(id => courses.find(c => c.id === id))
                 .filter(Boolean)
                 .map(course => (
-                  <div key={course.id} className="group flex items-center justify-between px-3 py-2 rounded-lg hover:bg-gray-100">
+                  <div key={course.id} className="group flex items-center justify-between px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-neutral-800">
                     <button
                       onClick={() => { setCurrentPage('dashboard'); handleCourseSelect(course); }}
-                      className="text-sm text-gray-700 truncate text-left flex-1"
-                      title={`${course.code} - ${course.title}`}
+                      className="text-sm text-gray-700 dark:text-gray-300 truncate text-left flex-1"
+                      title={`${course.shortName || course.code} - ${course.title}`}
                     >
-                      {course.code}
+                      {course.shortName || course.code}
                     </button>
                     <button
                       onClick={() => {
@@ -1442,7 +1442,7 @@ const ARMSPlatform = () => {
                           return next;
                         });
                       }}
-                      className="opacity-70 group-hover:opacity-100 text-gray-500 hover:text-gray-700"
+                      className="opacity-70 group-hover:opacity-100 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
                       title="Unpin"
                     >
                       <PinOff size={16} />
@@ -1456,19 +1456,19 @@ const ARMSPlatform = () => {
         {/* Recent Courses */}
         {recentCourseIds.length > 0 && (
           <div className="pt-4">
-            <div className="text-xs font-semibold text-gray-500 px-3 mb-2">Recent</div>
+            <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 px-3 mb-2">Recent</div>
             <div className="space-y-1">
               {recentCourseIds
                 .map(id => courses.find(c => c.id === id))
                 .filter(Boolean)
                 .map(course => (
-                  <div key={course.id} className="group flex items-center justify-between px-3 py-2 rounded-lg hover:bg-gray-100">
+                  <div key={course.id} className="group flex items-center justify-between px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-neutral-800">
                     <button
                       onClick={() => { setCurrentPage('dashboard'); handleCourseSelect(course); }}
-                      className="text-sm text-gray-700 truncate text-left flex-1"
-                      title={`${course.code} - ${course.title}`}
+                      className="text-sm text-gray-700 dark:text-gray-300 truncate text-left flex-1"
+                      title={`${course.shortName || course.code} - ${course.title}`}
                     >
-                      {course.code}
+                      {course.shortName || course.code}
                     </button>
                     <button
                       onClick={() => {
@@ -1478,7 +1478,7 @@ const ARMSPlatform = () => {
                           return next;
                         });
                       }}
-                      className="opacity-70 group-hover:opacity-100 text-gray-500 hover:text-gray-700"
+                      className="opacity-70 group-hover:opacity-100 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
                       title="Pin"
                     >
                       <Pin size={16} />
@@ -1491,7 +1491,7 @@ const ARMSPlatform = () => {
       </nav>
       
       <div className="p-4 border-t border-gray-200 space-y-2">
-        <button className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors">
+        <button className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors">
           <Settings size={20} />
           <span>Settings</span>
         </button>
@@ -1900,13 +1900,6 @@ const ARMSPlatform = () => {
                     <option value="DOC">Document</option>
                     <option value="OTHER">Other</option>
                   </select>
-                  <button
-                    onClick={seedDemoMaterialsForCourse}
-                    className="px-3 py-2 border border-dashed border-gray-400 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm"
-                    title="Add sample materials for demo"
-                  >
-                    Add Sample Materials
-                  </button>
                 </div>
               </div>
             </div>
