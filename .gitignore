@@ -139,4 +139,4 @@ temp/
 *.tmp
 
 # Application specific
-application.properties.backup
+application.properties.backupfirebase-admin-key.json

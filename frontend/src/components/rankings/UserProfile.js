@@ -9,13 +9,21 @@ import {
   Download, 
   Eye,
   Users,
-  TrendingUp
+  TrendingUp,
+  Edit2,
+  Check,
+  X
 } from 'lucide-react';
 
-const UserProfile = ({ user, onBack }) => {
+const UserProfile = ({ user, onBack, currentUserId }) => {
   const [materials, setMaterials] = useState([]);
   const [selectedCourse, setSelectedCourse] = useState('all');
   const [courseStats, setCourseStats] = useState({});
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState(user?.name || '');
+  const [isSaving, setIsSaving] = useState(false);
+  
+  const isOwnProfile = currentUserId === user?.id;
 
   // Safe user object with defaults
   const safeUser = {
@@ -26,56 +34,24 @@ const UserProfile = ({ user, onBack }) => {
     ...(user || {})
   };
 
-  // Mock data - in real app, this would come from API
+  // Use actual user materials from profile data
   useEffect(() => {
-    const mockMaterials = [
-      {
-        id: 1,
-        title: 'Advanced Data Structures Notes',
-        course: 'CS101',
-        type: 'notes',
-        uploadedAt: '2 hours ago',
-        downloadCount: 156,
-        fileSize: '3.2 MB'
-      },
-      {
-        id: 2,
-        title: 'Operating Systems Lab 3',
-        course: 'CS201',
-        type: 'code',
-        uploadedAt: '1 day ago',
-        downloadCount: 89,
-        fileSize: '2.1 MB'
-      },
-      {
-        id: 3,
-        title: 'Database Design Assignment',
-        course: 'CS301',
-        type: 'assignment',
-        uploadedAt: '3 days ago',
-        downloadCount: 234,
-        fileSize: '1.8 MB'
-      },
-      {
-        id: 4,
-        title: 'Machine Learning Project Report',
-        course: 'CS401',
-        type: 'document',
-        uploadedAt: '1 week ago',
-        downloadCount: 178,
-        fileSize: '5.6 MB'
-      }
-    ];
-    setMaterials(mockMaterials);
+    // Get materials from user object
+    const userMaterials = user?.materials || [];
+    setMaterials(userMaterials);
 
-    // Mock course statistics
-    setCourseStats({
-      'CS101': { count: 45, totalDownloads: 2340 },
-      'CS201': { count: 32, totalDownloads: 1890 },
-      'CS301': { count: 79, totalDownloads: 4560 },
-      'CS401': { count: 56, totalDownloads: 3120 }
+    // Calculate course statistics from actual materials
+    const stats = {};
+    userMaterials.forEach(material => {
+      const courseId = material.courseId || material.course;
+      if (!stats[courseId]) {
+        stats[courseId] = { count: 0, totalDownloads: 0 };
+      }
+      stats[courseId].count++;
+      stats[courseId].totalDownloads += material.downloads || 0;
     });
-  }, []);
+    setCourseStats(stats);
+  }, [user]);
 
   const getTypeIcon = (type) => {
     switch (type) {
@@ -119,8 +95,65 @@ const UserProfile = ({ user, onBack }) => {
           <div className="w-16 h-16 bg-gray-700 dark:bg-neutral-800 rounded-full flex items-center justify-center text-white text-2xl font-bold">
             {safeUser.name.charAt(0)}
           </div>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">{safeUser.name}</h1>
+          <div className="flex-1">
+            {isEditingName && isOwnProfile ? (
+              <div className="flex items-center space-x-2">
+                <input
+                  type="text"
+                  value={editedName}
+                  onChange={(e) => setEditedName(e.target.value)}
+                  className="text-2xl font-bold text-gray-900 dark:text-gray-100 bg-white dark:bg-neutral-800 border border-gray-300 dark:border-neutral-700 rounded px-2 py-1"
+                  autoFocus
+                />
+                <button
+                  onClick={async () => {
+                    setIsSaving(true);
+                    try {
+                      // Update name in Firestore
+                      const { doc, updateDoc } = await import('firebase/firestore');
+                      const { db } = await import('../../firebase');
+                      await updateDoc(doc(db, 'users', user.id), { name: editedName });
+                      // Update local user object
+                      user.name = editedName;
+                      setIsEditingName(false);
+                    } catch (error) {
+                      console.error('Failed to update name:', error);
+                      alert('Failed to update name. Please try again.');
+                    } finally {
+                      setIsSaving(false);
+                    }
+                  }}
+                  disabled={isSaving || !editedName.trim()}
+                  className="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-950/20 rounded-lg transition-colors disabled:opacity-50"
+                  title="Save"
+                >
+                  <Check size={20} />
+                </button>
+                <button
+                  onClick={() => {
+                    setEditedName(user?.name || '');
+                    setIsEditingName(false);
+                  }}
+                  className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg transition-colors"
+                  title="Cancel"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center space-x-2">
+                <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">{safeUser.name}</h1>
+                {isOwnProfile && (
+                  <button
+                    onClick={() => setIsEditingName(true)}
+                    className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-neutral-800 rounded-lg transition-colors"
+                    title="Edit name"
+                  >
+                    <Edit2 size={18} />
+                  </button>
+                )}
+              </div>
+            )}
             <p className="text-gray-600 dark:text-gray-400">{safeUser.role} • {safeUser.uploads} total uploads</p>
           </div>
         </div>
