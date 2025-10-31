@@ -25,7 +25,17 @@ import {
   MessageCircle,
   Sun,
   Moon,
-  Github
+  Github,
+  BarChart3,
+  BookMarked,
+  ChevronDown,
+  MessageSquare,
+  Edit2,
+  Check,
+  Calendar,
+  Send,
+  Reply,
+  CornerUpLeft
 } from 'lucide-react';
 import HomePage from './components/HomePage';
 import NotificationSidebar from './components/common/NotificationSidebar';
@@ -86,6 +96,7 @@ const ARMSPlatform = () => {
   const [showCourseChat, setShowCourseChat] = useState(false);
   const [courseMessages, setCourseMessages] = useState([]);
   const [courseChatText, setCourseChatText] = useState('');
+  const [replyingToCourseMsg, setReplyingToCourseMsg] = useState(null);
   const courseChatUnsubRef = useRef(null);
   const [showGlobalChat, setShowGlobalChat] = useState(false);
   const [conversations, setConversations] = useState([]);
@@ -93,6 +104,7 @@ const ARMSPlatform = () => {
   const [dmMessages, setDmMessages] = useState([]);
   const [unreadDMCount, setUnreadDMCount] = useState(0);
   const [dmText, setDmText] = useState('');
+  const [replyingToDM, setReplyingToDM] = useState(null);
   const dmUnsubRef = useRef(null);
   const convUnsubRef = useRef(null);
   const dmMessagesEndRef = useRef(null);
@@ -895,11 +907,27 @@ const ARMSPlatform = () => {
   const sendCourseChat = async () => {
     if (!courseChatText.trim() || !selectedCourse?.id) return;
     try {
-      await chatAPI.sendCourseMessage(selectedCourse.id, { userId: user?.id, userName: user?.name || user?.email || '', text: courseChatText });
+      const messageData = { 
+        userId: user?.id, 
+        userName: user?.name || user?.email || '', 
+        text: courseChatText 
+      };
+      
+      // Add reply data if replying
+      if (replyingToCourseMsg) {
+        messageData.replyTo = {
+          id: replyingToCourseMsg.id,
+          userName: replyingToCourseMsg.userName,
+          text: replyingToCourseMsg.text
+        };
+      }
+      
+      await chatAPI.sendCourseMessage(selectedCourse.id, messageData);
     } catch (err) {
       // no-op offline
     } finally {
       setCourseChatText('');
+      setReplyingToCourseMsg(null);
     }
   };
 
@@ -989,8 +1017,24 @@ const ARMSPlatform = () => {
   const sendDM = async () => {
     if (!activeConversation?.id || !dmText.trim()) return;
     try {
-      await chatAPI.sendDM(activeConversation.id, { userId: user?.id, userName: user?.name || user?.email || '', text: dmText });
+      const messageData = { 
+        userId: user?.id, 
+        userName: user?.name || user?.email || '', 
+        text: dmText 
+      };
+      
+      // Add reply data if replying
+      if (replyingToDM) {
+        messageData.replyTo = {
+          id: replyingToDM.id,
+          userName: replyingToDM.userName,
+          text: replyingToDM.text
+        };
+      }
+      
+      await chatAPI.sendDM(activeConversation.id, messageData);
       setDmText('');
+      setReplyingToDM(null);
       // Scroll to bottom after sending
       setTimeout(() => {
         if (dmMessagesEndRef.current) {
@@ -1060,6 +1104,13 @@ const ARMSPlatform = () => {
                 </div>
                 <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
                   <button
+                    onClick={() => setReplyingToCourseMsg(m)}
+                    className="text-xs text-gray-400 hover:text-blue-500 dark:text-gray-500 dark:hover:text-blue-400"
+                    title="Reply"
+                  >
+                    <Reply size={14} />
+                  </button>
+                  <button
                     onClick={async (e) => {
                       e.stopPropagation();
                       try {
@@ -1093,6 +1144,12 @@ const ARMSPlatform = () => {
                   )}
                 </div>
               </div>
+              {m.replyTo && (
+                <div className="mt-1 mb-1 p-2 bg-gray-100 dark:bg-neutral-800 rounded border-l-2 border-gray-400 dark:border-gray-600 text-xs">
+                  <div className="font-medium text-gray-600 dark:text-gray-400">{m.replyTo.userName}</div>
+                  <div className="text-gray-500 dark:text-gray-500 truncate">{m.replyTo.text}</div>
+                </div>
+              )}
               <div className="text-gray-700 dark:text-gray-300">{m.text}</div>
             </div>
           ))}
@@ -1101,6 +1158,23 @@ const ARMSPlatform = () => {
           )}
         </div>
         <div className="p-6 pt-4 border-t border-gray-200 dark:border-neutral-800">
+          {replyingToCourseMsg && (
+            <div className="mb-2 p-2 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800 flex items-start justify-between">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center space-x-1 text-xs text-blue-600 dark:text-blue-400 mb-1">
+                  <CornerUpLeft size={12} />
+                  <span>Replying to {replyingToCourseMsg.userName}</span>
+                </div>
+                <div className="text-sm text-gray-600 dark:text-gray-400 truncate">{replyingToCourseMsg.text}</div>
+              </div>
+              <button
+                onClick={() => setReplyingToCourseMsg(null)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 ml-2"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          )}
           <div className="flex items-center space-x-2">
             <input
               value={courseChatText}
@@ -1196,9 +1270,22 @@ const ARMSPlatform = () => {
                       <div className="text-xs text-gray-400 dark:text-gray-500">{m.userId === (user?.id) ? 'You' : (m.userName || 'User')} · {m.createdAt?.toDate ? m.createdAt.toDate().toLocaleString() : ''}</div>
                       <div className="inline-flex items-center gap-2">
                         <div className={`inline-block px-3 py-2 rounded-lg ${m.userId === (user?.id) ? 'bg-neutral-700 text-white' : 'bg-gray-100 dark:bg-neutral-700 text-gray-800 dark:text-gray-200'}`}>
+                          {m.replyTo && (
+                            <div className="mb-1 pb-1 border-b border-gray-500 dark:border-gray-600 text-xs opacity-75">
+                              <div className="font-medium">{m.replyTo.userName}</div>
+                              <div className="truncate">{m.replyTo.text}</div>
+                            </div>
+                          )}
                           {m.text}
                         </div>
                         <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                          <button
+                            onClick={() => setReplyingToDM(m)}
+                            className="text-xs text-gray-400 hover:text-blue-500 dark:text-gray-500 dark:hover:text-blue-400"
+                            title="Reply"
+                          >
+                            <Reply size={14} />
+                          </button>
                           <button
                             onClick={async (e) => {
                               e.stopPropagation();
@@ -1241,16 +1328,35 @@ const ARMSPlatform = () => {
                 <div className="h-full flex items-center justify-center text-gray-400 dark:text-gray-500">Select a conversation</div>
               )}
             </div>
-            <div className="p-3 border-t border-gray-100 dark:border-neutral-800 flex items-center space-x-2">
-              <input
-                value={dmText}
-                onChange={(e) => setDmText(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') sendDM(); }}
-                placeholder={activeConversation ? 'Type a message' : 'Select a conversation'}
-                disabled={!activeConversation}
-                className="flex-1 px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg focus:ring-2 focus:ring-gray-400 dark:bg-neutral-900 dark:text-gray-100"
-              />
-              <button onClick={sendDM} disabled={!activeConversation || !dmText.trim()} className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 disabled:opacity-50">Send</button>
+            <div className="p-3 border-t border-gray-100 dark:border-neutral-800">
+              {replyingToDM && (
+                <div className="mb-2 p-2 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800 flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center space-x-1 text-xs text-blue-600 dark:text-blue-400 mb-1">
+                      <CornerUpLeft size={12} />
+                      <span>Replying to {replyingToDM.userName}</span>
+                    </div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400 truncate">{replyingToDM.text}</div>
+                  </div>
+                  <button
+                    onClick={() => setReplyingToDM(null)}
+                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 ml-2"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              )}
+              <div className="flex items-center space-x-2">
+                <input
+                  value={dmText}
+                  onChange={(e) => setDmText(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') sendDM(); }}
+                  placeholder={activeConversation ? 'Type a message' : 'Select a conversation'}
+                  disabled={!activeConversation}
+                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg focus:ring-2 focus:ring-gray-400 dark:bg-neutral-900 dark:text-gray-100"
+                />
+                <button onClick={sendDM} disabled={!activeConversation || !dmText.trim()} className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 disabled:opacity-50 transition-colors whitespace-nowrap">Send</button>
+              </div>
             </div>
           </div>
         </div>
