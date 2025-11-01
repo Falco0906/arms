@@ -114,6 +114,7 @@ const ARMSPlatform = () => {
   const [pinnedCourseIds, setPinnedCourseIds] = useState([]);
   const [recentCourseIds, setRecentCourseIds] = useState([]);
   const [commentsMap, setCommentsMap] = useState({});
+  const [courseLastVisit, setCourseLastVisit] = useState({});
   const [commentsOpen, setCommentsOpen] = useState({});
   const [commentInputs, setCommentInputs] = useState({});
   const [commentCounts, setCommentCounts] = useState({});
@@ -124,6 +125,7 @@ const ARMSPlatform = () => {
 
   const getPinsKey = (userId) => `arms:${userId}:pins`;
   const getRecentsKey = (userId) => `arms:${userId}:recentCourses`;
+  const getLastVisitKey = (userId) => `arms:${userId}:courseVisits`;
   
   // Upload modal states
   const [uploadForm, setUploadForm] = useState({
@@ -148,11 +150,14 @@ const ARMSPlatform = () => {
         }
       }
       const recents = JSON.parse(localStorage.getItem(getRecentsKey(uid)) || '[]');
+      const visits = JSON.parse(localStorage.getItem(getLastVisitKey(uid)) || '{}');
       setPinnedCourseIds(Array.isArray(pins) ? pins : []);
       setRecentCourseIds(Array.isArray(recents) ? recents : []);
+      setCourseLastVisit(typeof visits === 'object' ? visits : {});
     } catch (e) {
       setPinnedCourseIds([]);
       setRecentCourseIds([]);
+      setCourseLastVisit({});
     }
   };
 
@@ -467,6 +472,19 @@ const ARMSPlatform = () => {
     setLoading(true);
     setMaterialSearchQuery('');
     setSelectedMaterialType('ALL');
+    
+    // Mark course as visited with current timestamp
+    const now = Date.now();
+    setCourseLastVisit(prev => {
+      const updated = { ...prev, [course.id]: now };
+      if (user?.id) {
+        try {
+          localStorage.setItem(getLastVisitKey(user.id), JSON.stringify(updated));
+        } catch (e) {}
+      }
+      return updated;
+    });
+    
     try {
       const materialsData = await materialAPI.getMaterialsByCourse(course.id);
       
@@ -1948,7 +1966,15 @@ const ARMSPlatform = () => {
       )}
       
       {/* Recently Uploaded Section */}
-      {recentMaterials.length > 0 && (
+      {recentMaterials.length > 0 && (() => {
+        // Calculate new materials since last visit
+        const lastVisitTime = courseLastVisit[selectedCourse?.id] || 0;
+        const newMaterialsCount = recentMaterials.filter(m => {
+          const materialTime = new Date(m.uploadedAt || m.createdAt || 0).getTime();
+          return materialTime > lastVisitTime;
+        }).length;
+        
+        return (
         <div className="bg-white dark:bg-neutral-900 rounded-xl shadow-sm border border-gray-200 dark:border-neutral-800 mb-6">
           <div className="p-6 border-b border-gray-200 dark:border-neutral-800">
             <div className="flex items-center justify-between">
@@ -1956,10 +1982,12 @@ const ARMSPlatform = () => {
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Recently Uploaded</h2>
                 <p className="text-gray-600 dark:text-gray-400">Latest materials added to this course</p>
               </div>
-              <div className="flex items-center space-x-2">
-                <Bell className="text-gray-500" size={20} />
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{recentMaterials.length} new</span>
-              </div>
+              {newMaterialsCount > 0 && (
+                <div className="flex items-center space-x-2">
+                  <Bell className="text-gray-500" size={20} />
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{newMaterialsCount} new</span>
+                </div>
+              )}
             </div>
           </div>
           <div className="p-6">
@@ -2026,7 +2054,8 @@ const ARMSPlatform = () => {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <div className="lg:col-span-3">
