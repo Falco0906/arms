@@ -35,6 +35,13 @@ export const userService = {
     const totalUploads = userMaterials.length;
     const totalDownloads = userMaterials.reduce((sum, m) => sum + (m.downloads || 0), 0);
     
+    console.log('User materials:', userMaterials.map(m => ({ 
+      id: m.id, 
+      courseId: m.courseId, 
+      downloads: m.downloads 
+    })));
+    console.log('Total downloads calculated:', totalDownloads);
+    
     // Fetch course names for materials
     const courseIds = [...new Set(userMaterials.map(m => m.courseId).filter(Boolean))];
     const courseMap = {};
@@ -44,11 +51,17 @@ export const userService = {
         if (courseDoc.exists()) {
           const courseData = courseDoc.data();
           courseMap[courseId] = courseData.shortName || courseData.code || courseData.title || courseId;
+          console.log(`Course ${courseId} mapped to:`, courseMap[courseId]);
+        } else {
+          console.warn(`Course ${courseId} not found in Firestore`);
+          courseMap[courseId] = courseId;
         }
       } catch (e) {
+        console.error(`Error fetching course ${courseId}:`, e);
         courseMap[courseId] = courseId;
       }
     }
+    console.log('Course map:', courseMap);
     
     // Add course names to materials
     const materialsWithCourseNames = userMaterials.map(m => ({
