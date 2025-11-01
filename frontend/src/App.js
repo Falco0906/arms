@@ -589,10 +589,10 @@ const ARMSPlatform = () => {
         settings: p.settings || {},
         totalUploads: p.totalUploads ?? p.statistics?.uploads ?? 0,
       };
-      normalized.uploads = normalized.uploads ?? normalized.statistics.uploads ?? 0;
-      normalized.downloads = normalized.downloads ?? normalized.statistics.downloads ?? 0;
-      normalized.notes = normalized.notes ?? normalized.statistics.notes ?? 0;
-      normalized.rank = normalized.rank ?? 1;
+      normalized.uploads = p.uploads ?? normalized.statistics.uploads ?? 0;
+      normalized.downloads = p.downloads ?? normalized.statistics.downloads ?? 0;
+      normalized.notes = p.notes ?? normalized.statistics.notes ?? 0;
+      normalized.rank = p.rank ?? null;
       setUserProfile(normalized);
       setCurrentPage('user-profile');
     } catch (err) {
@@ -1800,9 +1800,10 @@ const ARMSPlatform = () => {
                 settings: p.settings || {},
                 totalUploads: p.totalUploads ?? p.statistics?.uploads ?? 0,
               };
-              normalized.uploads = normalized.uploads ?? normalized.statistics.uploads ?? 0;
-              normalized.downloads = normalized.downloads ?? normalized.statistics.downloads ?? 0;
-              normalized.notes = normalized.notes ?? normalized.statistics.notes ?? 0;
+              normalized.uploads = p.uploads ?? normalized.statistics.uploads ?? 0;
+              normalized.downloads = p.downloads ?? normalized.statistics.downloads ?? 0;
+              normalized.notes = p.notes ?? normalized.statistics.notes ?? 0;
+              normalized.rank = p.rank ?? null;
               setUserProfile(normalized);
               setCurrentPage('user-profile');
             } catch (err) {
