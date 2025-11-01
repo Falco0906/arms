@@ -35,6 +35,28 @@ export const userService = {
     const totalUploads = userMaterials.length;
     const totalDownloads = userMaterials.reduce((sum, m) => sum + (m.downloads || 0), 0);
     
+    // Fetch course names for materials
+    const courseIds = [...new Set(userMaterials.map(m => m.courseId).filter(Boolean))];
+    const courseMap = {};
+    for (const courseId of courseIds) {
+      try {
+        const courseDoc = await getDoc(doc(db, 'courses', courseId));
+        if (courseDoc.exists()) {
+          const courseData = courseDoc.data();
+          courseMap[courseId] = courseData.shortName || courseData.code || courseData.title || courseId;
+        }
+      } catch (e) {
+        courseMap[courseId] = courseId;
+      }
+    }
+    
+    // Add course names to materials
+    const materialsWithCourseNames = userMaterials.map(m => ({
+      ...m,
+      courseName: courseMap[m.courseId] || m.courseId,
+      course: courseMap[m.courseId] || m.courseId
+    }));
+    
     // Calculate ranking based on uploads
     const allMaterialsSnapshot = await getDocs(collection(db, 'materials'));
     const uploaderCounts = {};
@@ -59,7 +81,7 @@ export const userService = {
       },
       recentCourses: data.recentCourses || [],
       pinnedCourses: data.pinnedCourses || [],
-      materials: userMaterials,
+      materials: materialsWithCourseNames,
       badges: data.badges || [],
       achievements: data.achievements || [],
       preferences: data.preferences || {},
@@ -70,6 +92,14 @@ export const userService = {
       notes: data.statistics?.notes || 0,
       rank: userRank
     };
+    
+    console.log('User profile calculated:', { 
+      id, 
+      uploads: totalUploads, 
+      downloads: totalDownloads, 
+      rank: userRank,
+      materialsCount: materialsWithCourseNames.length 
+    });
     
     return result;
   },
