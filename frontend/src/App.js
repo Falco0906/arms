@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
+import { compressFile, formatFileSize } from './utils/compression';
 import { 
   Search, 
   Bell, 
@@ -403,8 +404,17 @@ const ARMSPlatform = () => {
         try { setUploading(false); } catch (_) {}
         try { setError('Upload timed out. Please check your network or configuration and try again.'); } catch (_) {}
       }, 30000);
+      
+      // Compress file automatically
+      console.log('Original:', uploadForm.file.name, formatFileSize(uploadForm.file.size));
+      const compressionResult = await compressFile(uploadForm.file);
+      const fileToUpload = compressionResult.file;
+      if (compressionResult.compressed) {
+        console.log(`Compressed: ${formatFileSize(compressionResult.compressedSize)} (${compressionResult.savings}% saved)`);
+      }
+      
       const formData = new FormData();
-      formData.append('file', uploadForm.file);
+      formData.append('file', fileToUpload);
       formData.append('title', uploadForm.title || uploadForm.file.name);
       formData.append('type', uploadForm.type);
 
