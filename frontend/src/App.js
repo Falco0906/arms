@@ -46,7 +46,13 @@ import UserProfile from './components/rankings/UserProfile';
 
 
 const ARMSPlatform = () => {
-  const [currentPage, setCurrentPage] = useState('login');
+  const [currentPage, setCurrentPage] = useState(() => {
+    try {
+      return sessionStorage.getItem('arms:currentPage') || 'login';
+    } catch (e) {
+      return 'login';
+    }
+  });
   const [user, setUser] = useState(null);
   const [selectedCourses, setSelectedCourses] = useState([]);
   const [filteredCourses, setFilteredCourses] = useState([]);
@@ -289,6 +295,33 @@ const ARMSPlatform = () => {
       };
     }
   }, []);
+
+  // Save current page and selected course to sessionStorage
+  useEffect(() => {
+    if (user && currentPage !== 'login') {
+      try {
+        sessionStorage.setItem('arms:currentPage', currentPage);
+        if (selectedCourse) {
+          sessionStorage.setItem('arms:selectedCourse', JSON.stringify(selectedCourse));
+        } else {
+          sessionStorage.removeItem('arms:selectedCourse');
+        }
+      } catch (e) {}
+    }
+  }, [currentPage, selectedCourse, user]);
+
+  // Restore selected course on page load
+  useEffect(() => {
+    if (user && currentPage === 'dashboard') {
+      try {
+        const savedCourse = sessionStorage.getItem('arms:selectedCourse');
+        if (savedCourse && !selectedCourse) {
+          const course = JSON.parse(savedCourse);
+          handleCourseSelect(course);
+        }
+      } catch (e) {}
+    }
+  }, [user, currentPage]);
 
   // Close search dropdown when clicking outside
   useEffect(() => {
@@ -1546,11 +1579,7 @@ const ARMSPlatform = () => {
         </button>
         <button 
           onClick={() => {
-            setIsInboxOpen(prev => {
-              const next = !prev;
-              if (next) setNotifications(0);
-              return next;
-            });
+            setIsInboxOpen(prev => !prev);
           }}
           className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors ${currentPage === 'inbox' ? 'bg-gray-100 dark:bg-neutral-800 text-gray-900 dark:text-gray-100' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800'}`}
         >
