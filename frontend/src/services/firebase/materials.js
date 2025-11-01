@@ -180,12 +180,32 @@ export const materialService = {
     if (!db) {
       throw new Error('Firebase is not configured for database');
     }
+    
+    // Check if user has already downloaded this material
+    if (userId) {
+      const downloadRef = doc(db, 'materials', materialId, 'downloads', userId);
+      const downloadDoc = await getDoc(downloadRef);
+      
+      // If already downloaded, don't increment
+      if (downloadDoc.exists()) {
+        console.log('User already downloaded this material');
+        return;
+      }
+      
+      // Mark as downloaded by this user
+      await setDoc(downloadRef, {
+        userId: userId,
+        downloadedAt: serverTimestamp()
+      });
+    }
+    
+    // Increment material download count
     const materialRef = doc(db, 'materials', materialId);
     const materialDoc = await getDoc(materialRef);
     if (!materialDoc.exists()) throw new Error('Material not found');
     await updateDoc(materialRef, { downloads: (materialDoc.data().downloads || 0) + 1 });
     
-    // Update user's download statistics
+    // Update user's download statistics (only if first time downloading this material)
     if (userId) {
       try {
         const userRef = doc(db, 'users', userId);
