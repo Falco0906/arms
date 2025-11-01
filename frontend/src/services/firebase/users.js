@@ -20,28 +20,57 @@ export const userService = {
         achievements: [],
         preferences: {},
         social: {},
-        settings: {}
+        settings: {},
+        uploads: 0,
+        downloads: 0,
+        notes: 0,
+        rank: null
       };
     }
     const data = docSnap.data();
+    
+    // Calculate real-time stats from actual materials
+    const materialsSnapshot = await getDocs(query(collection(db, 'materials'), where('uploaderId', '==', id)));
+    const userMaterials = materialsSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    const totalUploads = userMaterials.length;
+    const totalDownloads = userMaterials.reduce((sum, m) => sum + (m.downloads || 0), 0);
+    
+    // Calculate ranking based on uploads
+    const allMaterialsSnapshot = await getDocs(collection(db, 'materials'));
+    const uploaderCounts = {};
+    allMaterialsSnapshot.forEach(d => {
+      const uploaderId = d.data().uploaderId;
+      uploaderCounts[uploaderId] = (uploaderCounts[uploaderId] || 0) + 1;
+    });
+    
+    // Sort by upload count and find rank
+    const sortedUploaders = Object.entries(uploaderCounts)
+      .sort(([,a], [,b]) => b - a);
+    const userRankIndex = sortedUploaders.findIndex(([uid]) => uid === id);
+    const userRank = totalUploads > 0 ? userRankIndex + 1 : null;
+    
     const result = {
       id: docSnap.id,
       ...data,
-      statistics: data.statistics || { notes: 0, uploads: 0, downloads: 0 },
+      statistics: {
+        uploads: totalUploads,
+        downloads: data.statistics?.downloads || 0,
+        notes: data.statistics?.notes || 0
+      },
       recentCourses: data.recentCourses || [],
       pinnedCourses: data.pinnedCourses || [],
-      materials: data.materials || [],
+      materials: userMaterials,
       badges: data.badges || [],
       achievements: data.achievements || [],
       preferences: data.preferences || {},
       social: data.social || {},
-      settings: data.settings || {}
+      settings: data.settings || {},
+      uploads: totalUploads,
+      downloads: totalDownloads,
+      notes: data.statistics?.notes || 0,
+      rank: userRank
     };
-    // Derived fields expected by UI
-    result.uploads = result.uploads ?? result.statistics.uploads ?? 0;
-    result.downloads = result.downloads ?? result.statistics.downloads ?? 0;
-    result.notes = result.notes ?? result.statistics.notes ?? 0;
-    result.rank = result.rank ?? 1;
+    
     return result;
   },
   searchUsers: async (term) => {

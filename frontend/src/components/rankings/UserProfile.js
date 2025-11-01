@@ -206,7 +206,9 @@ const UserProfile = ({ user, onBack, currentUserId }) => {
             </div>
             <div>
               <p className="text-sm text-gray-500 dark:text-gray-400">Ranking</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">#{safeUser.rank}</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                {safeUser.rank ? `#${safeUser.rank}` : 'Unranked'}
+              </p>
             </div>
           </div>
         </div>
